@@ -1,5 +1,8 @@
 ﻿#include "QEWB_Subsystem.h"
 
+#include "QEWB_InternalProxies.h"
+#include "QEWB_SinglePropertyViewEx.h"
+
 #include "Editor.h"
 #include "EditorUtilitySubsystem.h"
 #include "EditorUtilityWidgetBlueprint.h"
@@ -16,548 +19,839 @@
 #include "Components/ComboBoxString.h"
 #include "Components/SizeBox.h"
 
+#include "Framework/Docking/TabManager.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "Blueprint/UserWidget.h"
+
 #include "Components/VerticalBoxSlot.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "QEWB_Style.h"
 
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWindow.h"
 
-// ScriptableEditorWidgets for picker widgets
-#include "Components/SinglePropertyView.h"
-#include "Components/PropertyViewBase.h"
-
 /* ------------------------------ Internal Helpers ------------------------------ */
 
-static void AddChildFill(UPanelWidget* Parent, UWidget* Child, const FMargin& Padding = FMargin(0))
+static void AddChildSlotRule(UPanelWidget* Parent, UWidget* Child, EQEWB_SlotRule Rule, const FMargin& Padding = FMargin(0))
 {
-	if (!Parent || !Child) return;
+    if (!Parent || !Child) return;
 
-	if (UVerticalBox* VBox = Cast<UVerticalBox>(Parent))
-	{
-		UVerticalBoxSlot* Slot = VBox->AddChildToVerticalBox(Child);
-		Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-		Slot->SetPadding(Padding);
-		Slot->SetHorizontalAlignment(HAlign_Fill);
-		Slot->SetVerticalAlignment(VAlign_Fill);
-		return;
-	}
-	if (UHorizontalBox* HBox = Cast<UHorizontalBox>(Parent))
-	{
-		UHorizontalBoxSlot* Slot = HBox->AddChildToHorizontalBox(Child);
-		Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-		Slot->SetPadding(Padding);
-		Slot->SetHorizontalAlignment(HAlign_Fill);
-		Slot->SetVerticalAlignment(VAlign_Fill);
-		return;
-	}
+    const ESlateSizeRule::Type SizeRule = (Rule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill;
 
-	Parent->AddChild(Child);
+    if (UVerticalBox* VBox = Cast<UVerticalBox>(Parent))
+    {
+        UVerticalBoxSlot* Slot = VBox->AddChildToVerticalBox(Child);
+        Slot->SetSize(FSlateChildSize(SizeRule));
+        Slot->SetPadding(Padding);
+        Slot->SetHorizontalAlignment(HAlign_Fill);
+        Slot->SetVerticalAlignment(VAlign_Fill);
+        return;
+    }
+    if (UHorizontalBox* HBox = Cast<UHorizontalBox>(Parent))
+    {
+        UHorizontalBoxSlot* Slot = HBox->AddChildToHorizontalBox(Child);
+        Slot->SetSize(FSlateChildSize(SizeRule));
+        Slot->SetPadding(Padding);
+        Slot->SetHorizontalAlignment(HAlign_Fill);
+        Slot->SetVerticalAlignment(VAlign_Fill);
+        return;
+    }
+
+    Parent->AddChild(Child);
 }
 
 static UPanelWidget* RequireContainer(UQEWB_WindowHandle* Handle)
 {
-	return Handle ? Handle->Current() : nullptr;
+    return Handle ? Handle->Current() : nullptr;
 }
 
-static UHorizontalBox* AddLabeledRow(UQEWB_WindowHandle* Handle, const FText& LabelText)
+static UHorizontalBox* AddLabeledRow(UQEWB_WindowHandle* Handle, const FText& LabelText, EQEWB_SlotRule RowRule)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent || !Handle) return nullptr;
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent || !Handle) return nullptr;
 
-	UHorizontalBox* Row = NewObject<UHorizontalBox>(Parent);
-	AddChildFill(Parent, Row, FMargin(0, 2));
+    UHorizontalBox* Row = NewObject<UHorizontalBox>(Parent);
+    AddChildSlotRule(Parent, Row, RowRule, FMargin(0, 2));
 
-	UTextBlock* Label = NewObject<UTextBlock>(Row);
-	Label->SetText(LabelText);
+    UTextBlock* Label = NewObject<UTextBlock>(Row);
+    Label->SetText(LabelText);
 
-	UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(Label);
-	LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-	LabelSlot->Size.Value = Handle->LabelFill;
-	LabelSlot->SetPadding(FMargin(0, 2, 8, 2));
-	LabelSlot->SetHorizontalAlignment(HAlign_Fill);
-	LabelSlot->SetVerticalAlignment(VAlign_Center);
+    UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(Label);
+    LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    LabelSlot->SetPadding(FMargin(0, 2, 8, 2));
+    LabelSlot->SetHorizontalAlignment(HAlign_Fill);
+    LabelSlot->SetVerticalAlignment(VAlign_Center);
 
-	return Row;
+    return Row;
 }
 
+/* ------------------------------ Windows ------------------------------ */
 
-/* ------------------------------ Subsystem API ------------------------------ */
-
-UQEWB_WindowHandle* UQEWB_Subsystem::StartWindow(UEditorUtilityWidgetBlueprint* HostWidgetBlueprint, const FString& /*Title*/)
+UQEWB_WindowHandle* UQEWB_Subsystem::StartWindow(const FString& Title)
 {
-	if (!HostWidgetBlueprint || !GEditor) return nullptr;
+    if (!GEditor) return nullptr;
 
-	UEditorUtilitySubsystem* Subsys = GEditor->GetEditorSubsystem<UEditorUtilitySubsystem>();
-	if (!Subsys) return nullptr;
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World) return nullptr;
 
-	UEditorUtilityWidget* Spawned = Subsys->SpawnAndRegisterTab(HostWidgetBlueprint);
-	if (!Spawned) return nullptr;
+    // Create a native host widget (no blueprint)
+    UQEWB_HostWidget* Host = CreateWidget<UQEWB_HostWidget>(World, UQEWB_HostWidget::StaticClass());
+    if (!Host) return nullptr;
 
-	UQEWB_HostWidget* Host = Cast<UQEWB_HostWidget>(Spawned);
-	if (!Host || !Host->Root) return nullptr;
+    Host->EnsureRoot();
+    Host->TakeWidget();
+    if (!Host->Root) return nullptr;
 
-	UQEWB_WindowHandle* Handle = NewObject<UQEWB_WindowHandle>(GetTransientPackage());
-	Handle->Window = Spawned;
-	Handle->LayoutStack.Reset();
-	Handle->LayoutStack.Add(Host->Root);
+    TSharedRef<SWindow> WindowRef = SNew(SWindow)
+        .Title(FText::FromString(Title))
+        .SizingRule(ESizingRule::UserSized)
+        .ClientSize(FVector2D(800, 600))
+        .SupportsMaximize(false)
+        .SupportsMinimize(false)
+        [
+            Host->TakeWidget()
+        ];
 
-	return Handle;
+    // Non-modal: AddWindow (NOT AddModalWindow)
+    FSlateApplication::Get().AddWindow(WindowRef);
+
+    UQEWB_WindowHandle* Handle = NewObject<UQEWB_WindowHandle>(GetTransientPackage());
+    Handle->NonModalHost = Host;
+    Handle->NonModalWindow = WindowRef;
+    Handle->LayoutStack.Reset();
+    Handle->LayoutStack.Add(Host->Root);
+
+    // Optional: emit "Closed" event when window closes
+    WindowRef->SetOnWindowClosed(FOnWindowClosed::CreateLambda([Handle](const TSharedRef<SWindow>&)
+        {
+            if (!Handle) return;
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::Closed;
+            E.Id = TEXT("Window");
+            E.ValueType = EQEWB_ValueType::None;
+            Handle->Emit(E);
+        }));
+
+    return Handle;
 }
 
-UQEWB_WindowHandle* UQEWB_Subsystem::CreateModalWindow(
-	TSubclassOf<UQEWB_HostWidget> HostWidgetClass,
-	const FString& Title)
+UQEWB_WindowHandle* UQEWB_Subsystem::CreateModalWindow(const FString& Title)
 {
-	if (!HostWidgetClass || !GEditor) return nullptr;
+    if (!GEditor) return nullptr;
 
-	UWorld* World = GEditor->GetEditorWorldContext().World();
-	if (!World) return nullptr;
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World) return nullptr;
 
-	// Create the UMG host
-	UQEWB_HostWidget* Host = CreateWidget<UQEWB_HostWidget>(World, HostWidgetClass);
-	if (!Host) return nullptr;
+    UQEWB_HostWidget* Host = CreateWidget<UQEWB_HostWidget>(World, UQEWB_HostWidget::StaticClass());
+    if (!Host) return nullptr;
 
-	// CRITICAL: ensure Root exists BEFORE we return the handle
-	Host->EnsureRoot();
+    Host->EnsureRoot();
+    Host->TakeWidget();
+    if (!Host->Root) return nullptr;
 
-	// Force UMG -> Slate construction now so the widget is ready
-	Host->TakeWidget();
+    TSharedRef<SWindow> WindowRef = SNew(SWindow)
+        .Title(FText::FromString(Title))
+        .SizingRule(ESizingRule::Autosized)
+        .SupportsMaximize(false)
+        .SupportsMinimize(false)
+        [
+            Host->TakeWidget()
+        ];
 
-	if (!Host->Root) return nullptr;
-
-	// Create the window BUT do not show it yet
-	TSharedRef<SWindow> WindowRef = SNew(SWindow)
-		.Title(FText::FromString(Title))
-		.SizingRule(ESizingRule::Autosized)
-		.SupportsMaximize(false)
-		.SupportsMinimize(false)
-		[
-			Host->TakeWidget()
-		];
-
-	// Create handle and point its layout root at Host->Root
-	UQEWB_WindowHandle* Handle = NewObject<UQEWB_WindowHandle>(GetTransientPackage());
-	Handle->ModalHost = Host;
-	Handle->ModalWindow = WindowRef;
-	Handle->LayoutStack.Reset();
-	Handle->LayoutStack.Add(Host->Root);
-
-	return Handle; // ✅ non-blocking
+    UQEWB_WindowHandle* Handle = NewObject<UQEWB_WindowHandle>(GetTransientPackage());
+    Handle->ModalHost = Host;
+    Handle->ModalWindow = WindowRef;
+    Handle->LayoutStack.Reset();
+    Handle->LayoutStack.Add(Host->Root);
+    return Handle;
 }
 
 void UQEWB_Subsystem::ShowModalWindow(UQEWB_WindowHandle* Handle)
 {
-	if (!Handle || !Handle->ModalWindow.IsValid()) return;
+    if (!Handle || !Handle->ModalWindow.IsValid()) return;
 
-	// NOTE: This blocks until closed (that's the point)
-	Handle->bModalShown = true;
-	FSlateApplication::Get().AddModalWindow(Handle->ModalWindow.ToSharedRef(), nullptr);
-	Handle->bModalShown = false;
+    Handle->bModalShown = true;
+    FSlateApplication::Get().AddModalWindow(Handle->ModalWindow.ToSharedRef(), nullptr);
+    Handle->bModalShown = false;
 
-	// Emit "Closed" event if you want
-	FQEWB_Event E;
-	E.Type = EQEWB_EventType::Closed;
-	E.Id = TEXT("Window");
-	E.ValueType = EQEWB_ValueType::None;
-	Handle->Emit(E);
+    FQEWB_Event E;
+    E.Type = EQEWB_EventType::Closed;
+    E.Id = TEXT("Window");
+    E.ValueType = EQEWB_ValueType::None;
+    Handle->Emit(E);
 }
 
-void UQEWB_Subsystem::NormalizeLayouts(UQEWB_WindowHandle* Handle)
+
+// Spawns the dock tab and hosts your UMG widget inside it.
+static TSharedRef<SDockTab> SpawnQEWBTab_Internal(
+    const FSpawnTabArgs& Args,
+    TWeakObjectPtr<UQEWB_WindowHandle> WeakHandle,
+    TWeakObjectPtr<UQEWB_HostWidget> WeakHost,
+    FText DisplayTitle
+)
 {
-	if (Handle) Handle->NormalizeLayouts();
+    TSharedRef<SDockTab> DockTab =
+        SNew(SDockTab)
+        .TabRole(ETabRole::NomadTab)
+        .Label(DisplayTitle);
+
+    if (UQEWB_HostWidget* Host = WeakHost.Get())
+    {
+        Host->EnsureRoot();
+        DockTab->SetContent(Host->TakeWidget());
+        DockTab->SetLabel(DisplayTitle); 
+    }
+
+    DockTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateLambda(
+        [WeakHandle](TSharedRef<SDockTab> ClosedTab)
+        {
+            if (UQEWB_WindowHandle* Handle = WeakHandle.Get())
+            {
+                // Optional: if you have an event system
+                // FQEWB_Event E; E.Type = EQEWB_EventType::Closed; ... Handle->Emit(E);
+
+                if (!Handle->TabId.IsNone())
+                {
+                    FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(Handle->TabId);
+                }
+
+                Handle->Tab.Reset();
+                Handle->TabHost = nullptr;
+            }
+        }
+    ));
+
+    return DockTab;
 }
 
-void UQEWB_Subsystem::SetLabelControlFill(UQEWB_WindowHandle* Handle, float LabelFill, float ControlFill)
+UQEWB_WindowHandle* UQEWB_Subsystem::StartTab(const FString& Title)
 {
-	if (!Handle) return;
-	Handle->LabelFill = FMath::Max(0.f, LabelFill);
-	Handle->ControlFill = FMath::Max(0.f, ControlFill);
+    if (!GEditor) return nullptr;
+
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World) return nullptr;
+
+    // Create handle
+    UQEWB_WindowHandle* Handle = NewObject<UQEWB_WindowHandle>(GetTransientPackage());
+
+    // Create your concrete host widget (NOT abstract)
+    UQEWB_HostWidget* Host = CreateWidget<UQEWB_HostWidget>(World, UQEWB_HostWidget::StaticClass());
+    if (!Host) return nullptr;
+
+    Handle->TabHost = Host;
+
+    // Unique tab ID per instance (so you can open multiple tabs if you want)
+    const FGuid Guid = FGuid::NewGuid();
+    Handle->TabId = *FString::Printf(TEXT("QEWB_Tab_%s"), *Guid.ToString(EGuidFormats::Digits));
+    const FText DisplayTitle = FText::FromString(Title);
+
+    const TWeakObjectPtr<UQEWB_WindowHandle> WeakHandle(Handle);
+    const TWeakObjectPtr<UQEWB_HostWidget> WeakHost(Host);
+
+    // Register the spawner
+    FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
+        Handle->TabId,
+        FOnSpawnTab::CreateLambda([WeakHandle, WeakHost, DisplayTitle](const FSpawnTabArgs& Args)
+            {
+                return SpawnQEWBTab_Internal(Args, WeakHandle, WeakHost, DisplayTitle);
+            })
+    )
+        .SetDisplayName(DisplayTitle)
+        .SetMenuType(ETabSpawnerMenuType::Hidden); // hide from Window menu; optional
+
+    // Spawn/focus the tab
+    TSharedPtr<SDockTab> SpawnedTab = FGlobalTabmanager::Get()->TryInvokeTab(Handle->TabId);
+    if (!SpawnedTab.IsValid())
+    {
+        FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(Handle->TabId);
+        Handle->TabHost = nullptr;
+        return nullptr;
+    }
+
+    Handle->Tab = SpawnedTab;
+
+    // Keep your layout stack consistent with window/modal
+    Host->EnsureRoot();
+    Handle->LayoutStack.Reset();
+    Handle->LayoutStack.Add(Host->Root);
+
+    return Handle;
 }
 
+void UQEWB_Subsystem::CloseWindow(UQEWB_WindowHandle* Handle)
+{
+    if (!Handle) return;
+
+    // Modal window
+    if (Handle->ModalWindow.IsValid())
+    {
+        Handle->ModalWindow->RequestDestroyWindow();
+        Handle->ModalWindow.Reset();
+        Handle->ModalHost = nullptr;
+        return;
+    }
+
+    // Non-modal window
+    if (Handle->NonModalWindow.IsValid())
+    {
+        Handle->NonModalWindow->RequestDestroyWindow();
+        Handle->NonModalWindow.Reset();
+        Handle->NonModalHost = nullptr;
+        return;
+    }
+
+    if (Handle->Tab.IsValid())
+    {
+        // Close tab
+        Handle->Tab.Pin()->RequestCloseTab();
+
+        // Spawner unregister happens in OnTabClosed callback (above),
+        // but you can also do it here if you want immediate cleanup.
+        return;
+    }
+}
+
+/* ------------------------------ Utils ------------------------------ */
+
+UQEWB_WindowHandle* UQEWB_Subsystem::NormalizeLayouts(UQEWB_WindowHandle* Handle)
+{
+    if (Handle) Handle->NormalizeLayouts();
+
+    return Handle;
+}
+
+UQEWB_WindowHandle* UQEWB_Subsystem::SetLabelControlFill(UQEWB_WindowHandle* Handle, float LabelFill, float ControlFill)
+{
+    if (!Handle) return Handle;
+    Handle->LabelFill = FMath::Max(0.f, LabelFill);
+    Handle->ControlFill = FMath::Max(0.f, ControlFill);
+
+    return Handle;
+}
+
+static void ApplyTextStyle(UTextBlock* TB, const FQEWB_TextStyle& Style)
+{
+    if (!TB) return;
+
+    FSlateFontInfo Font = TB->GetFont();
+    Font.Size = Style.FontSize;
+    TB->SetFont(Font);
+    TB->SetColorAndOpacity(FSlateColor(Style.FontColor));
+
+}
 /* ------------------------------ Layout ------------------------------ */
 
-void UQEWB_Subsystem::BeginVertical(UQEWB_WindowHandle* Handle, bool bBox)
+UQEWB_WindowHandle* UQEWB_Subsystem::BeginVertical(UQEWB_WindowHandle* Handle, bool bBox, EQEWB_SlotRule SlotRule)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent || !Handle) return;
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent || !Handle) return Handle;
 
-	UVerticalBox* VBox = NewObject<UVerticalBox>(Parent);
+    UVerticalBox* VBox = NewObject<UVerticalBox>(Parent);
 
-	if (bBox)
-	{
-		UBorder* Border = NewObject<UBorder>(Parent);
-		Border->SetContent(VBox);
-		AddChildFill(Parent, Border, FMargin(6));
-	}
-	else
-	{
-		AddChildFill(Parent, VBox);
-	}
+    if (bBox)
+    {
+        UBorder* Border = NewObject<UBorder>(Parent);
+        Border->SetContent(VBox);
+        AddChildSlotRule(Parent, Border, SlotRule, FMargin(6));
+    }
+    else
+    {
+        AddChildSlotRule(Parent, VBox, SlotRule);
+    }
 
-	Handle->Push(VBox);
+    Handle->Push(VBox);
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::EndVertical(UQEWB_WindowHandle* Handle)
+UQEWB_WindowHandle* UQEWB_Subsystem::EndVertical(UQEWB_WindowHandle* Handle)
 {
-	if (Handle) Handle->Pop();
+    if (Handle) Handle->Pop();
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BeginHorizontal(UQEWB_WindowHandle* Handle)
+UQEWB_WindowHandle* UQEWB_Subsystem::BeginHorizontal(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent || !Handle) return;
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent || !Handle) return NULL;
 
-	UHorizontalBox* HBox = NewObject<UHorizontalBox>(Parent);
-	AddChildFill(Parent, HBox);
+    UHorizontalBox* HBox = NewObject<UHorizontalBox>(Parent);
+    AddChildSlotRule(Parent, HBox, SlotRule);
+    Handle->Push(HBox);
 
-	Handle->Push(HBox);
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::EndHorizontal(UQEWB_WindowHandle* Handle)
+UQEWB_WindowHandle* UQEWB_Subsystem::EndHorizontal(UQEWB_WindowHandle* Handle)
 {
-	if (Handle) Handle->Pop();
+    if (Handle) Handle->Pop();
+
+    return Handle;
 }
 
-void UQEWB_Subsystem::BeginScrollView(UQEWB_WindowHandle* Handle)
+UQEWB_WindowHandle* UQEWB_Subsystem::BeginScrollView(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent || !Handle) return;
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent || !Handle) return NULL;
 
-	UScrollBox* Scroll = NewObject<UScrollBox>(Parent);
-	AddChildFill(Parent, Scroll);
+    UScrollBox* Scroll = NewObject<UScrollBox>(Parent);
+    AddChildSlotRule(Parent, Scroll, SlotRule);
 
-	UVerticalBox* Body = NewObject<UVerticalBox>(Scroll);
-	Scroll->AddChild(Body);
+    UVerticalBox* Body = NewObject<UVerticalBox>(Scroll);
+    Scroll->AddChild(Body);
 
-	Handle->Push(Body);
+    Handle->Push(Body);
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::EndScrollView(UQEWB_WindowHandle* Handle)
+UQEWB_WindowHandle* UQEWB_Subsystem::EndScrollView(UQEWB_WindowHandle* Handle)
 {
-	if (Handle) Handle->Pop();
+    if (Handle) Handle->Pop();
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BeginFoldout(UQEWB_WindowHandle* Handle, FName Id, const FText& HeaderText, bool bDefaultExpanded)
+UQEWB_WindowHandle* UQEWB_Subsystem::BeginFoldout(UQEWB_WindowHandle* Handle, FName Id, const FText& HeaderText, bool bDefaultExpanded, EQEWB_SlotRule SlotRule)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent || !Handle) return;
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent || !Handle) return NULL;
 
-	if (!Handle->BoolValues.Contains(Id))
-	{
-		Handle->BoolValues.Add(Id, bDefaultExpanded);
-	}
-	const bool bExpanded = Handle->BoolValues[Id];
+    if (!Handle->BoolValues.Contains(Id))
+    {
+        Handle->BoolValues.Add(Id, bDefaultExpanded);
+    }
+    const bool bExpanded = Handle->BoolValues[Id];
 
-	UVerticalBox* FoldRoot = NewObject<UVerticalBox>(Parent);
-	AddChildFill(Parent, FoldRoot);
+    UVerticalBox* FoldRoot = NewObject<UVerticalBox>(Parent);
+    AddChildSlotRule(Parent, FoldRoot, SlotRule);
 
-	UButton* HeaderBtn = NewObject<UButton>(FoldRoot);
-	AddChildFill(FoldRoot, HeaderBtn);
+    UButton* HeaderBtn = NewObject<UButton>(FoldRoot);
+    AddChildSlotRule(FoldRoot, HeaderBtn, EQEWB_SlotRule::Auto);
 
-	UTextBlock* HeaderLabel = NewObject<UTextBlock>(HeaderBtn);
-	HeaderLabel->SetText(HeaderText);
-	HeaderBtn->AddChild(HeaderLabel);
+    UTextBlock* HeaderLabel = NewObject<UTextBlock>(HeaderBtn);
+    HeaderLabel->SetText(HeaderText);
+    HeaderBtn->AddChild(HeaderLabel);
 
-	UVerticalBox* Content = NewObject<UVerticalBox>(FoldRoot);
-	AddChildFill(FoldRoot, Content, FMargin(4, 4, 0, 6));
-	Content->SetVisibility(bExpanded ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    UVerticalBox* Content = NewObject<UVerticalBox>(FoldRoot);
+    AddChildSlotRule(FoldRoot, Content, EQEWB_SlotRule::Fill, FMargin(4, 4, 0, 6));
+    Content->SetVisibility(bExpanded ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 
-	UQEWB_FoldoutProxy* Proxy = NewObject<UQEWB_FoldoutProxy>(HeaderBtn);
-	Proxy->Handle = Handle;
-	Proxy->Id = Id;
-	Proxy->Content = Content;
-	HeaderBtn->OnClicked.AddDynamic(Proxy, &UQEWB_FoldoutProxy::Toggle);
+    UQEWB_FoldoutProxy* Proxy = NewObject<UQEWB_FoldoutProxy>(HeaderBtn);
+    Proxy->Handle = Handle;
+    Proxy->Id = Id;
+    Proxy->Content = Content;
+    HeaderBtn->OnClicked.AddDynamic(Proxy, &UQEWB_FoldoutProxy::Toggle);
 
-	Handle->Push(Content);
+    Handle->Push(Content);
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::EndFoldout(UQEWB_WindowHandle* Handle)
+UQEWB_WindowHandle* UQEWB_Subsystem::EndFoldout(UQEWB_WindowHandle* Handle)
 {
-	if (Handle) Handle->Pop();
+    if (Handle) Handle->Pop();
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BeginToolbar(UQEWB_WindowHandle* Handle) { BeginHorizontal(Handle); }
-void UQEWB_Subsystem::EndToolbar(UQEWB_WindowHandle* Handle) { EndHorizontal(Handle); }
-
-void UQEWB_Subsystem::Space(UQEWB_WindowHandle* Handle, float Height)
+UQEWB_WindowHandle* UQEWB_Subsystem::BeginToolbar(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent) return;
+    BeginHorizontal(Handle, SlotRule);
 
-	USpacer* Spacer = NewObject<USpacer>(Parent);
-	Spacer->SetSize(FVector2D(1.f, Height));
-	AddChildFill(Parent, Spacer);
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::Separator(UQEWB_WindowHandle* Handle)
+UQEWB_WindowHandle* UQEWB_Subsystem::EndToolbar(UQEWB_WindowHandle* Handle)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent) return;
+    EndHorizontal(Handle);
 
-	UBorder* Line = NewObject<UBorder>(Parent);
-	AddChildFill(Parent, Line, FMargin(0, 4));
+    return Handle;
 
-	USizeBox* SB = NewObject<USizeBox>(Line);
-	SB->SetHeightOverride(1.f);
-	Line->SetContent(SB);
+}
+
+UQEWB_WindowHandle* UQEWB_Subsystem::AddSpace(UQEWB_WindowHandle* Handle, float Height, EQEWB_SlotRule SlotRule)
+{
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent) return Handle;
+
+    USpacer* Spacer = NewObject<USpacer>(Parent);
+    Spacer->SetSize(FVector2D(1.f, Height));
+    AddChildSlotRule(Parent, Spacer, SlotRule);
+
+    return Handle;
+
+}
+
+UQEWB_WindowHandle* UQEWB_Subsystem::AddSeparator(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule)
+{
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent) return Handle;
+
+    UBorder* Line = NewObject<UBorder>(Parent);
+    AddChildSlotRule(Parent, Line, SlotRule, FMargin(0, 4));
+
+    USizeBox* SB = NewObject<USizeBox>(Line);
+    SB->SetHeightOverride(1.f);
+    Line->SetContent(SB);
+
+    return Handle;
+
 }
 
 /* ------------------------------ Controls ------------------------------ */
 
-void UQEWB_Subsystem::Label(UQEWB_WindowHandle* Handle, const FText& Text)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddLabel(UQEWB_WindowHandle* Handle,
+    const FText& Text,
+    EQEWB_SlotRule SlotRule,
+    FQEWB_TextStyle Style)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent) return;
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent) return Handle;
 
-	UTextBlock* TB = NewObject<UTextBlock>(Parent);
-	TB->SetText(Text);
-	AddChildFill(Parent, TB);
+    UTextBlock* TB = NewObject<UTextBlock>(Parent);
+    TB->SetText(Text);
+    AddChildSlotRule(Parent, TB, SlotRule);
+
+    ApplyTextStyle(TB, Style);
+
+    return Handle;
+
+
 }
 
-void UQEWB_Subsystem::Button(UQEWB_WindowHandle* Handle, FName Id, const FText& Text)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddButton(UQEWB_WindowHandle* Handle,
+    FName Id,
+    const FText& Text,
+    EQEWB_SlotRule SlotRule,
+    FQEWButtonStyleSetup Style, 
+    FQEWB_TextStyle TextStyle)
 {
-	UPanelWidget* Parent = RequireContainer(Handle);
-	if (!Parent || !Handle) return;
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent || !Handle) return NULL;
 
-	UButton* Btn = NewObject<UButton>(Parent);
-	AddChildFill(Parent, Btn);
+    UButton* Btn = NewObject<UButton>(Parent);
+    AddChildSlotRule(Parent, Btn, SlotRule);
 
-	UTextBlock* TB = NewObject<UTextBlock>(Btn);
-	TB->SetText(Text);
-	Btn->AddChild(TB);
+    UTextBlock* TB = NewObject<UTextBlock>(Btn);
+    TB->SetText(Text);
+    Btn->AddChild(TB);
 
-	UQEWB_ButtonProxy* Proxy = NewObject<UQEWB_ButtonProxy>(Btn);
-	Proxy->Handle = Handle;
-	Proxy->Id = Id;
-	Btn->OnClicked.AddDynamic(Proxy, &UQEWB_ButtonProxy::OnClicked);
+    UQEWB_ButtonProxy* Proxy = NewObject<UQEWB_ButtonProxy>(Btn);
+    Proxy->Handle = Handle;
+    Proxy->Id = Id;
+    Btn->OnClicked.AddDynamic(Proxy, &UQEWB_ButtonProxy::OnClicked);
+
+    UQEWButtonStyling::ApplyButtonStyle(Btn, Style);
+    UQEWButtonStyling::BindTextTintEvents(Btn, TB, Style);
+
+    TB->Font.Size = TextStyle.FontSize;
+
+    Handle->RegisterWidget(Id, (UWidget*)Btn);
+
+
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::Toggle(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, bool bDefaultValue)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddToggle(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, bool bDefaultValue, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style)
 {
-	if (!Handle) return;
+    if (!Handle) return NULL;
 
-	if (!Handle->BoolValues.Contains(Id))
-	{
-		Handle->BoolValues.Add(Id, bDefaultValue);
-	}
+    if (!Handle->BoolValues.Contains(Id))
+    {
+        Handle->BoolValues.Add(Id, bDefaultValue);
+    }
 
-	UHorizontalBox* Row = AddLabeledRow(Handle, LabelText);
-	if (!Row) return;
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    if (!Row) return Handle;
 
-	UCheckBox* CB = NewObject<UCheckBox>(Row);
-	CB->SetIsChecked(Handle->BoolValues[Id]);
+    UCheckBox* CB = NewObject<UCheckBox>(Row);
+    CB->SetIsChecked(Handle->BoolValues[Id]);
 
-	UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(CB);
-	Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-	Slot->Size.Value = Handle->ControlFill;
-	Slot->SetPadding(FMargin(0, 2, 0, 2));
-	Slot->SetHorizontalAlignment(HAlign_Fill);
-	Slot->SetVerticalAlignment(VAlign_Center);
+    UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(CB);
+    Slot->SetSize(FSlateChildSize((SlotRule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill));
 
-	UQEWB_CheckboxProxy* Proxy = NewObject<UQEWB_CheckboxProxy>(CB);
-	Proxy->Handle = Handle;
-	Proxy->Id = Id;
-	CB->OnCheckStateChanged.AddDynamic(Proxy, &UQEWB_CheckboxProxy::OnChanged);
+    Slot->SetPadding(FMargin(0, 2, 0, 2));
+    Slot->SetHorizontalAlignment(HAlign_Fill);
+    Slot->SetVerticalAlignment(VAlign_Center);
+
+    UQEWB_CheckboxProxy* Proxy = NewObject<UQEWB_CheckboxProxy>(CB);
+    Proxy->Handle = Handle;
+    Proxy->Id = Id;
+    CB->OnCheckStateChanged.AddDynamic(Proxy, &UQEWB_CheckboxProxy::OnChanged);
+
+    Handle->RegisterWidget(Id, (UWidget*)CB);
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::TextField(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, const FString& DefaultValue)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddTextField(UQEWB_WindowHandle* Handle,
+    FName Id,
+    const FText& LabelText,
+    const FString& DefaultValue,
+    EQEWB_SlotRule SlotRule,
+    FQEWB_TextStyle TextStyle,
+    FQEWB_BackgroundStyle BgStyle)
 {
-	if (!Handle) return;
+    if (!Handle) return NULL;
 
-	if (!Handle->StringValues.Contains(Id))
-	{
-		Handle->StringValues.Add(Id, DefaultValue);
-	}
+    if (!Handle->StringValues.Contains(Id))
+    {
+        Handle->StringValues.Add(Id, DefaultValue);
+    }
 
-	UHorizontalBox* Row = AddLabeledRow(Handle, LabelText);
-	if (!Row) return;
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    if (!Row) return Handle;
 
-	UEditableTextBox* TB = NewObject<UEditableTextBox>(Row);
-	TB->SetText(FText::FromString(Handle->StringValues[Id]));
+    UEditableTextBox* TB = NewObject<UEditableTextBox>(Row);
+    TB->SetText(FText::FromString(Handle->StringValues[Id]));
 
-	UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(TB);
-	Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-	Slot->Size.Value = Handle->ControlFill;
-	Slot->SetPadding(FMargin(0, 2, 0, 2));
-	Slot->SetHorizontalAlignment(HAlign_Fill);
-	Slot->SetVerticalAlignment(VAlign_Center);
+    UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(TB);
+    Slot->SetSize(FSlateChildSize((SlotRule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill));
 
-	UQEWB_TextProxy* Proxy = NewObject<UQEWB_TextProxy>(TB);
-	Proxy->Handle = Handle;
-	Proxy->Id = Id;
-	TB->OnTextChanged.AddDynamic(Proxy, &UQEWB_TextProxy::OnTextChanged);
+    Slot->SetPadding(FMargin(0, 2, 0, 2));
+    Slot->SetHorizontalAlignment(HAlign_Fill);
+    Slot->SetVerticalAlignment(VAlign_Center);
+
+    UQEWB_TextProxy* Proxy = NewObject<UQEWB_TextProxy>(TB);
+    Proxy->Handle = Handle;
+    Proxy->Id = Id;
+    TB->OnTextChanged.AddDynamic(Proxy, &UQEWB_TextProxy::OnTextChanged);
+
+    Handle->RegisterWidget(Id, (UWidget*)TB);
+
+    TB->WidgetStyle.BackgroundColor = BgStyle.BackgroundColor;
+
+    TB->WidgetStyle.SetFont(TB->WidgetStyle.Font_DEPRECATED.TypefaceFontName, TextStyle.FontSize);
+    TB->SetForegroundColor(TextStyle.FontColor);
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::EnumPopup(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UEnum* EnumType, int32 DefaultValue)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddEnumPopup(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UEnum* EnumType, int32 DefaultValue, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style)
 {
-	if (!Handle || !EnumType) return;
+    if (!Handle || !EnumType) return NULL;
 
-	if (!Handle->IntValues.Contains(Id))
-	{
-		Handle->IntValues.Add(Id, DefaultValue);
-	}
+    if (!Handle->IntValues.Contains(Id))
+    {
+        Handle->IntValues.Add(Id, DefaultValue);
+    }
 
-	UHorizontalBox* Row = AddLabeledRow(Handle, LabelText);
-	if (!Row) return;
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    if (!Row) return Handle;
 
-	UComboBoxString* Combo = NewObject<UComboBoxString>(Row);
+    UComboBoxString* Combo = NewObject<UComboBoxString>(Row);
 
-	TArray<FString> Options;
-	for (int32 i = 0; i < EnumType->NumEnums(); ++i)
-	{
-		const FString D = EnumType->GetDisplayNameTextByIndex(i).ToString();
-		Options.Add(D);
-		Combo->AddOption(D);
-	}
+    TArray<FString> Options;
+    for (int32 i = 0; i < EnumType->NumEnums(); ++i)
+    {
+        const FString D = EnumType->GetDisplayNameTextByIndex(i).ToString();
+        Options.Add(D);
+        Combo->AddOption(D);
+    }
 
-	const int32 Sel = FMath::Clamp(Handle->IntValues[Id], 0, Options.Num() - 1);
-	if (Options.IsValidIndex(Sel)) Combo->SetSelectedOption(Options[Sel]);
+    const int32 Sel = FMath::Clamp(Handle->IntValues[Id], 0, Options.Num() - 1);
+    if (Options.IsValidIndex(Sel)) Combo->SetSelectedOption(Options[Sel]);
 
-	UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(Combo);
-	Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-	Slot->Size.Value = Handle->ControlFill;
-	Slot->SetPadding(FMargin(0, 2, 0, 2));
-	Slot->SetHorizontalAlignment(HAlign_Fill);
-	Slot->SetVerticalAlignment(VAlign_Center);
+    UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(Combo);
+    Slot->SetSize(FSlateChildSize((SlotRule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill));
+    Slot->SetPadding(FMargin(0, 2, 0, 2));
+    Slot->SetHorizontalAlignment(HAlign_Fill);
+    Slot->SetVerticalAlignment(VAlign_Center);
 
-	UQEWB_ComboProxy* Proxy = NewObject<UQEWB_ComboProxy>(Combo);
-	Proxy->Handle = Handle;
-	Proxy->Id = Id;
-	Proxy->EnumType = EnumType;
-	Combo->OnSelectionChanged.AddDynamic(Proxy, &UQEWB_ComboProxy::OnSelectionChanged);
+    UQEWB_ComboProxy* Proxy = NewObject<UQEWB_ComboProxy>(Combo);
+    Proxy->Handle = Handle;
+    Proxy->Id = Id;
+    Proxy->EnumType = EnumType;
+    Combo->OnSelectionChanged.AddDynamic(Proxy, &UQEWB_ComboProxy::OnSelectionChanged);
+
+
+    Combo->ForegroundColor = Style.FontColor; 
+    Handle->RegisterWidget(Id, (UWidget*)Combo);
+
+    return Handle;
+
+
+
 }
 
-void UQEWB_Subsystem::ObjectPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* AllowedClass, UObject* DefaultObject)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddObjectPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* AllowedClass, UObject* DefaultObject, EQEWB_SlotRule SlotRule)
 {
-	if (!Handle || !AllowedClass) return;
+    if (!Handle || !AllowedClass) return NULL;
 
-	if (!Handle->ObjectValues.Contains(Id))
-	{
-		Handle->ObjectValues.Add(Id, DefaultObject);
-	}
+    if (!Handle->ObjectValues.Contains(Id))
+    {
+        Handle->ObjectValues.Add(Id, DefaultObject);
+    }
 
-	UHorizontalBox* Row = AddLabeledRow(Handle, LabelText);
-	if (!Row) return;
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    if (!Row) return Handle;
 
-	UQEWB_ObjectPickerModel* Model = NewObject<UQEWB_ObjectPickerModel>(Handle);
-	Model->SelectedObject = Handle->ObjectValues[Id];
+    UQEWB_ObjectPickerModel* Model = NewObject<UQEWB_ObjectPickerModel>(Handle);
+    Model->SelectedObject = Handle->ObjectValues[Id];
 
-	UQEWB_SinglePropertyView* View = NewObject<UQEWB_SinglePropertyView>(Row);
-	View->SetObject(Model);
-	View->SetPropertyName(GET_MEMBER_NAME_CHECKED(UQEWB_ObjectPickerModel, SelectedObject));
+    UQEWB_SinglePropertyViewEx* View = NewObject<UQEWB_SinglePropertyViewEx>(Row);
+    View->SetObject(Model);
+    View->SetPropertyName(GET_MEMBER_NAME_CHECKED(UQEWB_ObjectPickerModel, SelectedObject));
 
-	UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(View);
-	Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-	Slot->Size.Value = Handle->ControlFill;
-	Slot->SetPadding(FMargin(0, 2, 0, 2));
-	Slot->SetHorizontalAlignment(HAlign_Fill);
-	Slot->SetVerticalAlignment(VAlign_Center);
+    UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(View);
+    Slot->SetSize(FSlateChildSize((SlotRule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill));
 
-	UQEWB_PropertyViewProxy* Proxy = NewObject<UQEWB_PropertyViewProxy>(View);
-	Proxy->Handle = Handle;
-	Proxy->Id = Id;
-	Proxy->Model = Model;
-	Proxy->FilterClass = AllowedClass;
-	Proxy->bIsClassPicker = false;
+    Slot->SetPadding(FMargin(0, 2, 0, 2));
+    Slot->SetHorizontalAlignment(HAlign_Fill);
+    Slot->SetVerticalAlignment(VAlign_Center);
 
-	View->GetOnPropertyChangedPublic().AddDynamic(Proxy, &UQEWB_PropertyViewProxy::OnPropertyChanged);
+    UQEWB_PropertyViewProxy* Proxy = NewObject<UQEWB_PropertyViewProxy>(View);
+    Proxy->Handle = Handle;
+    Proxy->Id = Id;
+    Proxy->Model = Model;
+    Proxy->FilterClass = AllowedClass;
+    Proxy->bIsClassPicker = false;
+
+    View->GetOnPropertyChangedPublic().AddDynamic(Proxy, &UQEWB_PropertyViewProxy::OnPropertyChanged);
+
+    Handle->RegisterWidget(Id, (UWidget*)View);
+
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::ClassPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* BaseClass, UClass* DefaultClass)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddClassPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* BaseClass, UClass* DefaultClass, EQEWB_SlotRule SlotRule)
 {
-	if (!Handle || !BaseClass) return;
+    if (!Handle || !BaseClass) return NULL;
 
-	if (!Handle->ClassValues.Contains(Id))
-	{
-		Handle->ClassValues.Add(Id, DefaultClass ? DefaultClass : BaseClass);
-	}
+    if (!Handle->ClassValues.Contains(Id))
+    {
+        Handle->ClassValues.Add(Id, DefaultClass ? DefaultClass : BaseClass);
+    }
 
-	UHorizontalBox* Row = AddLabeledRow(Handle, LabelText);
-	if (!Row) return;
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    if (!Row) return Handle;
 
-	UQEWB_ClassPickerModel* Model = NewObject<UQEWB_ClassPickerModel>(Handle);
-	Model->SelectedClass = Handle->ClassValues[Id];
+    UQEWB_ClassPickerModel* Model = NewObject<UQEWB_ClassPickerModel>(Handle);
+    Model->SelectedClass = Handle->ClassValues[Id];
 
-	UQEWB_SinglePropertyView* View = NewObject<UQEWB_SinglePropertyView>(Row);
-	View->SetObject(Model);
-	View->SetPropertyName(GET_MEMBER_NAME_CHECKED(UQEWB_ClassPickerModel, SelectedClass));
+    UQEWB_SinglePropertyViewEx* View = NewObject<UQEWB_SinglePropertyViewEx>(Row);
+    View->SetObject(Model);
+    View->SetPropertyName(GET_MEMBER_NAME_CHECKED(UQEWB_ClassPickerModel, SelectedClass));
 
-	UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(View);
-	Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-	Slot->Size.Value = Handle->ControlFill;
-	Slot->SetPadding(FMargin(0, 2, 0, 2));
-	Slot->SetHorizontalAlignment(HAlign_Fill);
-	Slot->SetVerticalAlignment(VAlign_Center);
+    UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(View);
+    Slot->SetSize(FSlateChildSize((SlotRule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill));
 
-	UQEWB_PropertyViewProxy* Proxy = NewObject<UQEWB_PropertyViewProxy>(View);
-	Proxy->Handle = Handle;
-	Proxy->Id = Id;
-	Proxy->Model = Model;
-	Proxy->FilterClass = BaseClass;
-	Proxy->bIsClassPicker = true;
+    Slot->SetPadding(FMargin(0, 2, 0, 2));
+    Slot->SetHorizontalAlignment(HAlign_Fill);
+    Slot->SetVerticalAlignment(VAlign_Center);
 
-	View->GetOnPropertyChangedPublic().AddDynamic(Proxy, &UQEWB_PropertyViewProxy::OnPropertyChanged);
+    UQEWB_PropertyViewProxy* Proxy = NewObject<UQEWB_PropertyViewProxy>(View);
+    Proxy->Handle = Handle;
+    Proxy->Id = Id;
+    Proxy->Model = Model;
+    Proxy->FilterClass = BaseClass;
+    Proxy->bIsClassPicker = true;
+
+    View->GetOnPropertyChangedPublic().AddDynamic(Proxy, &UQEWB_PropertyViewProxy::OnPropertyChanged);
+
+    Handle->RegisterWidget(Id, (UWidget*)View);
+    return Handle;
+
 }
 
 /* ------------------------------ Events ------------------------------ */
 
 void UQEWB_Subsystem::PollEvents(UQEWB_WindowHandle* Handle, bool bClear, TArray<FQEWB_Event>& OutEvents)
 {
-	OutEvents.Reset();
-	if (!Handle) return;
+    OutEvents.Reset();
+    if (!Handle) return;
 
-	OutEvents = Handle->Events;
-	if (bClear) Handle->Events.Reset();
+    OutEvents = Handle->Events;
+    if (bClear) Handle->Events.Reset();
 }
 
 bool UQEWB_Subsystem::DidChangeSinceLastPoll(UQEWB_WindowHandle* Handle, bool bReset)
 {
-	if (!Handle) return false;
-	const bool bVal = Handle->bChangedSinceLastPoll;
-	if (bReset) Handle->bChangedSinceLastPoll = false;
-	return bVal;
+    if (!Handle) return false;
+    const bool bVal = Handle->bChangedSinceLastPoll;
+    if (bReset) Handle->bChangedSinceLastPoll = false;
+    return bVal;
 }
 
-/* ------------------------------ Per-property callback binding ------------------------------ */
+/* ------------------------------ Callbacks ------------------------------ */
 
-void UQEWB_Subsystem::BindBoolChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_BoolChanged Callback)
+UQEWB_WindowHandle* UQEWB_Subsystem::BindButtonClicked(UQEWB_WindowHandle* Handle, FName Id, FQEWB_ButtonClicked Callback)
 {
-	if (!Handle) return;
-	Handle->OnBoolChangedById.Add(Id, Callback);
+    if (!Handle) return NULL;
+    Handle->OnButtonClickedById.Add(Id, Callback);
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BindIntChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_IntChanged Callback)
+UQEWB_WindowHandle* UQEWB_Subsystem::BindBoolChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_BoolChanged Callback)
 {
-	if (!Handle) return;
-	Handle->OnIntChangedById.Add(Id, Callback);
+    if (!Handle) return NULL;
+    Handle->OnBoolChangedById.Add(Id, Callback);
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BindFloatChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_FloatChanged Callback)
+UQEWB_WindowHandle* UQEWB_Subsystem::BindIntChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_IntChanged Callback)
 {
-	if (!Handle) return;
-	Handle->OnFloatChangedById.Add(Id, Callback);
+    if (!Handle) return NULL;
+    Handle->OnIntChangedById.Add(Id, Callback);
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BindStringChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_StringChanged Callback)
+UQEWB_WindowHandle* UQEWB_Subsystem::BindFloatChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_FloatChanged Callback)
 {
-	if (!Handle) return;
-	Handle->OnStringChangedById.Add(Id, Callback);
+    if (!Handle) return NULL;
+    Handle->OnFloatChangedById.Add(Id, Callback);
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BindNameChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_NameChanged Callback)
+UQEWB_WindowHandle* UQEWB_Subsystem::BindStringChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_StringChanged Callback)
 {
-	if (!Handle) return;
-	Handle->OnNameChangedById.Add(Id, Callback);
+    if (!Handle) return NULL;
+    Handle->OnStringChangedById.Add(Id, Callback);
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BindObjectChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_ObjectChanged Callback)
+UQEWB_WindowHandle* UQEWB_Subsystem::BindNameChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_NameChanged Callback)
 {
-	if (!Handle) return;
-	Handle->OnObjectChangedById.Add(Id, Callback);
+    if (!Handle) return NULL;
+    Handle->OnNameChangedById.Add(Id, Callback);
+    return Handle;
+
 }
 
-void UQEWB_Subsystem::BindClassChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_ClassChanged Callback)
+UQEWB_WindowHandle* UQEWB_Subsystem::BindObjectChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_ObjectChanged Callback)
 {
-	if (!Handle) return;
-	Handle->OnClassChangedById.Add(Id, Callback);
+    if (!Handle) return NULL;
+    Handle->OnObjectChangedById.Add(Id, Callback);
+    return Handle;
+
 }
+
+UQEWB_WindowHandle* UQEWB_Subsystem::BindClassChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_ClassChanged Callback)
+{
+    if (!Handle) return NULL;
+    Handle->OnClassChangedById.Add(Id, Callback);
+    return Handle;
+
+}
+
