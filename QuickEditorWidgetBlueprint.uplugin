@@ -1,0 +1,24 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "QuickEditorWidgetBlueprint",
+  "Description": "Unity-like immediate-mode layout API for Editor Utility Widgets (Blueprint-friendly).",
+  "Category": "Editor",
+  "CreatedBy": "ChatGPT",
+  "CreatedByURL": "",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "IsExperimentalVersion": true,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "QuickEditorWidgetBlueprint",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
