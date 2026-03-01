@@ -22,22 +22,22 @@ class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_Subsystem : public UEditorSubsystem
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint")
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Window")
     static UQEWB_WindowHandle* StartWindow(const FString& Title);
 
-    UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint")
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Window")
     static UQEWB_WindowHandle* CreateModalWindow(const FString& Title);
 
-    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidget")
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Window")
     static UQEWB_WindowHandle* StartTab(const FString& Title);
 
-    UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint")
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Window")
     static void ShowModalWindow(UQEWB_WindowHandle* Handle);
 
     UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Window")
     static void CloseWindow(UQEWB_WindowHandle* Handle);
 
-    UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint")
+    UFUNCTION()
     static UQEWB_WindowHandle* NormalizeLayouts(UQEWB_WindowHandle* Handle);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Settings")
@@ -110,7 +110,7 @@ public:
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
     static UQEWB_WindowHandle* AddEnumDropdown(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UEnum* EnumType, int32 DefaultValue, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style, FQEWB_ComboStyle ComboStyle);
 
-    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidget")
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Controls")
     static UQEWB_WindowHandle* AddStringDropdown(
         UQEWB_WindowHandle* Handle,
         FName Id,
