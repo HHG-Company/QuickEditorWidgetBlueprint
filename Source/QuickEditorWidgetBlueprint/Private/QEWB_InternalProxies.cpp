@@ -1,6 +1,11 @@
 #include "QEWB_InternalProxies.h"
 #include "Components/VerticalBox.h"
 
+#include "Components/TextBlock.h"
+#include "Components/HorizontalBox.h"
+#include "Components/HorizontalBoxSlot.h"
+#include "Components/ExpandableArea.h"
+
 void UQEWB_ButtonProxy::OnClicked()
 {
     if (!Handle) return;
@@ -71,22 +76,10 @@ void UQEWB_ComboProxy::OnSelectionChanged(FString SelectedItem, ESelectInfo::Typ
     Handle->Emit(E);
 }
 
-void UQEWB_FoldoutProxy::Toggle()
+void UQEWB_ExpandableAreaProxy::OnExpansionChanged(UExpandableArea* Area, bool bIsExpanded)
 {
-    if (!Handle || !Content) return;
-
-    const bool bNowExpanded = (Content->GetVisibility() != ESlateVisibility::Visible);
-    Content->SetVisibility(bNowExpanded ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-
-    Handle->BoolValues.FindOrAdd(Id) = bNowExpanded;
-    Handle->NotifyBoolChanged(Id, bNowExpanded);
-
-    FQEWB_Event E;
-    E.Type = EQEWB_EventType::FoldoutChanged;
-    E.Id = Id;
-    E.ValueType = EQEWB_ValueType::Bool;
-    E.BoolValue = bNowExpanded;
-    Handle->Emit(E);
+    if (!Handle) return;
+    Handle->BoolValues.Add(Id, bIsExpanded);
 }
 
 void UQEWB_PropertyViewProxy::OnPropertyChanged(FName)
@@ -131,5 +124,39 @@ void UQEWB_PropertyViewProxy::OnPropertyChanged(FName)
     E.Id = Id;
     E.ValueType = EQEWB_ValueType::Object;
     E.ObjectValue = OM->SelectedObject;
+    Handle->Emit(E);
+}
+
+
+UWidget* UQEWB_ComboBoxProxy::GenerateWidget(FString Item) 
+{
+    UHorizontalBox* Box = NewObject<UHorizontalBox>(GetTransientPackage());
+
+    UTextBlock* T = NewObject<UTextBlock>(Box);
+    T->SetText(FText::FromString(Item));
+    T->SetColorAndOpacity(ItemTextColor);
+
+    UHorizontalBoxSlot* Slot = Box->AddChildToHorizontalBox(T);
+    Slot->SetPadding(ItemPadding);
+    Slot->SetHorizontalAlignment(HAlign_Fill);
+    Slot->SetVerticalAlignment(VAlign_Center);
+
+    return Box;
+}
+
+
+void UQEWB_ComboSelectionProxy::OnSelectionChanged(FString SelectedItem, ESelectInfo::Type SelectionType)
+{
+    if (!Handle) return;
+
+    // If you only want user selections, you can filter:
+    // if (SelectionType == ESelectInfo::Direct) return; // (depends on your needs)
+
+    FQEWB_Event E;
+    E.Type = EQEWB_EventType::ValueChanged;
+    E.Id = Id;
+    E.ValueType = EQEWB_ValueType::String;
+    E.StringValue = SelectedItem;
+
     Handle->Emit(E);
 }

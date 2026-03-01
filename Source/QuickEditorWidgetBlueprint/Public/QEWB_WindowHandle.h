@@ -85,6 +85,9 @@ public:
 
     UPROPERTY(Transient) TMap<FName, FQEWB_ButtonClicked> OnButtonClickedById;
 
+    UPROPERTY()
+    TArray<TObjectPtr<UObject>> OwnedUObjects;
+
 public:
     UPanelWidget* Current() const { return LayoutStack.Num() > 0 ? LayoutStack.Last() : nullptr; }
 

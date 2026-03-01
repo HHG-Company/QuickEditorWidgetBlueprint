@@ -14,6 +14,7 @@ class UEnum;
 struct FQEWB_TextStyle;
 struct FQEWB_BackgroundStyle;
 struct FQEWButtonStyleSetup;
+struct FQEWB_ComboStyle;
 
 UCLASS()
 class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_Subsystem : public UEditorSubsystem
@@ -44,13 +45,22 @@ public:
 
     // Layout
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
-    static UQEWB_WindowHandle* BeginVertical(UQEWB_WindowHandle* Handle, bool bBox, EQEWB_SlotRule SlotRule);
+    static UQEWB_WindowHandle* BeginVertical(
+        UQEWB_WindowHandle* Handle,
+        bool bBox,
+        EQEWB_SlotRule SlotRule,
+        FMargin Margin
+    );
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
     static UQEWB_WindowHandle* EndVertical(UQEWB_WindowHandle* Handle);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
-    static UQEWB_WindowHandle* BeginHorizontal(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule);
+    static UQEWB_WindowHandle* BeginHorizontal(
+        UQEWB_WindowHandle* Handle,
+        EQEWB_SlotRule SlotRule,
+        FMargin Margin
+    );
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
     static UQEWB_WindowHandle* EndHorizontal(UQEWB_WindowHandle* Handle);
@@ -66,12 +76,6 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
     static UQEWB_WindowHandle* EndFoldout(UQEWB_WindowHandle* Handle);
-
-    UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
-    static UQEWB_WindowHandle* BeginToolbar(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule);
-
-    UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
-    static UQEWB_WindowHandle* EndToolbar(UQEWB_WindowHandle* Handle);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
     static UQEWB_WindowHandle* AddSpace(UQEWB_WindowHandle* Handle, float Height, EQEWB_SlotRule SlotRule);
@@ -104,13 +108,24 @@ public:
         FQEWB_BackgroundStyle BgStyle);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
-    static UQEWB_WindowHandle* AddEnumPopup(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UEnum* EnumType, int32 DefaultValue, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style);
+    static UQEWB_WindowHandle* AddEnumDropdown(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UEnum* EnumType, int32 DefaultValue, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style, FQEWB_ComboStyle ComboStyle);
+
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidget")
+    static UQEWB_WindowHandle* AddStringDropdown(
+        UQEWB_WindowHandle* Handle,
+        FName Id,
+        const FText& LabelText,
+        const TArray<FString>& Options,
+        const FString& DefaultValue,
+        EQEWB_SlotRule SlotRule,
+        FQEWB_TextStyle TextStyle
+    );
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
-    static UQEWB_WindowHandle* AddObjectPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* AllowedClass, UObject* DefaultObject, EQEWB_SlotRule SlotRule);
+    static UQEWB_WindowHandle* AddObjectPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* AllowedClass, UObject* DefaultObject, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
-    static UQEWB_WindowHandle* AddClassPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* BaseClass, UClass* DefaultClass, EQEWB_SlotRule SlotRule);
+    static UQEWB_WindowHandle* AddClassPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* BaseClass, UClass* DefaultClass, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style);
 
     // Events
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Events")

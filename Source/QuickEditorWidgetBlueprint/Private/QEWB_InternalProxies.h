@@ -3,10 +3,12 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "QEWB_WindowHandle.h"
+#include "Components/CheckBox.h"
 #include "QEWB_InternalProxies.generated.h"
 
 class UVerticalBox;
 class UEnum;
+class UExpandableArea;
 
 UCLASS()
 class UQEWB_ButtonProxy : public UObject
@@ -54,15 +56,15 @@ public:
 };
 
 UCLASS()
-class UQEWB_FoldoutProxy : public UObject
+class UQEWB_ExpandableAreaProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle;
-    UPROPERTY() FName Id = NAME_None;
-    UPROPERTY() TObjectPtr<UVerticalBox> Content = nullptr;
+    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle = nullptr;
+    UPROPERTY() FName Id;
 
-    UFUNCTION() void Toggle();
+    UFUNCTION()
+    void OnExpansionChanged(UExpandableArea* Area, bool bIsExpanded);
 };
 
 UCLASS()
@@ -95,4 +97,43 @@ public:
     UPROPERTY() bool bIsClassPicker = false;
 
     UFUNCTION() void OnPropertyChanged(FName PropertyName);
+};
+
+UCLASS()
+class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_ComboBoxProxy : public UObject
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY() FLinearColor ItemTextColor = FLinearColor::White;
+    UPROPERTY() FMargin ItemPadding = FMargin(10.f, 4.f);
+
+    UFUNCTION()
+    UWidget* GenerateWidget(FString Item);
+};
+
+UCLASS()
+class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_ComboSelectionProxy : public UObject
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle = nullptr;
+    UPROPERTY() FName Id;
+
+    UFUNCTION()
+    void OnSelectionChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+};
+
+UCLASS()
+class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_ToggleRowProxy : public UObject
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY() TObjectPtr<UCheckBox> CheckBox = nullptr;
+
+    UFUNCTION()
+    void OnRowClicked()
+    {
+        if (!CheckBox) return;
+        CheckBox->SetIsChecked(!CheckBox->IsChecked());
+    }
 };

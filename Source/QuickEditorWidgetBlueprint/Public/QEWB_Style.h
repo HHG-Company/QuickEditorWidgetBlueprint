@@ -2,12 +2,17 @@
 
 #include "CoreMinimal.h"
 #include "Styling/SlateColor.h"
+#include "Styling/SlateTypes.h"
+
 #include "QEWB_Style.generated.h"
 
 USTRUCT(BlueprintType)
 struct FQEWB_TextStyle
 {
     GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<UObject> FontObject = nullptr; // usually UFont* or UFontFace*
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 FontSize = 10;
@@ -61,6 +66,49 @@ struct FQEWButtonStyleSetup
 	bool bTintLinkedText = true;
 };
 
+USTRUCT(BlueprintType)
+struct FQEWB_ComboStyle
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FLinearColor NormalBg = FLinearColor(0.14f, 0.14f, 0.14f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FLinearColor HoverBg = FLinearColor(0.20f, 0.20f, 0.20f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FLinearColor PressedBg = FLinearColor(0.08f, 0.08f, 0.08f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FLinearColor DisabledBg = FLinearColor(0.10f, 0.10f, 0.10f, 0.45f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FLinearColor TextColor = FLinearColor::White;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FLinearColor ItemTextColor = FLinearColor::White;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FLinearColor ItemHoverBg = FLinearColor(0.25f, 0.25f, 0.25f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FMargin ContentPadding = FMargin(10.f, 4.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	FMargin ItemPadding = FMargin(10.f, 4.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	float MinListWidth = 200.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	float MaxListHeight = 280.f;
+
+	// If you want the dropdown arrow area to look nicer:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QuickEditorWidget|Style")
+	float DownArrowPaddingRight = 10.f;
+};
+
 /**
  * Styling helpers for standard UButtons inside QuickEditorWidget editor UIs.
  */
@@ -80,4 +128,19 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "QuickEditorWidget|Style")
 	static void BindTextTintEvents(UButton* Button, UTextBlock* LinkedText, const FQEWButtonStyleSetup& Setup);
+};
+
+class UComboBoxString;
+
+UCLASS()
+class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_ComboStyling : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "QuickEditorWidget|Style")
+	static void ApplyComboBoxStyle(UComboBoxString* Combo, const FQEWB_ComboStyle& Style);
+
+private:
+	static FSlateBrush MakeTintBrush(const FLinearColor& Tint);
 };

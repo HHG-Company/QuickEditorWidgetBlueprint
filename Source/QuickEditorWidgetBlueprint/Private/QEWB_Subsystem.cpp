@@ -18,6 +18,7 @@
 #include "Components/Spacer.h"
 #include "Components/ComboBoxString.h"
 #include "Components/SizeBox.h"
+#include "Components/ExpandableArea.h"
 
 #include "Framework/Docking/TabManager.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -65,7 +66,7 @@ static UPanelWidget* RequireContainer(UQEWB_WindowHandle* Handle)
     return Handle ? Handle->Current() : nullptr;
 }
 
-static UHorizontalBox* AddLabeledRow(UQEWB_WindowHandle* Handle, const FText& LabelText, EQEWB_SlotRule RowRule)
+static UHorizontalBox* AddLabeledRow(UQEWB_WindowHandle* Handle, const FText& LabelText, EQEWB_SlotRule RowRule, FQEWB_TextStyle Style)
 {
     UPanelWidget* Parent = RequireContainer(Handle);
     if (!Parent || !Handle) return nullptr;
@@ -75,6 +76,8 @@ static UHorizontalBox* AddLabeledRow(UQEWB_WindowHandle* Handle, const FText& La
 
     UTextBlock* Label = NewObject<UTextBlock>(Row);
     Label->SetText(LabelText);
+    Label->Font.Size = Style.FontSize;
+
 
     UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(Label);
     LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -342,22 +345,26 @@ static void ApplyTextStyle(UTextBlock* TB, const FQEWB_TextStyle& Style)
 }
 /* ------------------------------ Layout ------------------------------ */
 
-UQEWB_WindowHandle* UQEWB_Subsystem::BeginVertical(UQEWB_WindowHandle* Handle, bool bBox, EQEWB_SlotRule SlotRule)
+UQEWB_WindowHandle* UQEWB_Subsystem::BeginVertical(UQEWB_WindowHandle* Handle, bool bBox, EQEWB_SlotRule SlotRule, FMargin Margin)
 {
+    if (!Handle) return Handle;
+
     UPanelWidget* Parent = RequireContainer(Handle);
-    if (!Parent || !Handle) return Handle;
+    if (!Parent) return Handle;
 
     UVerticalBox* VBox = NewObject<UVerticalBox>(Parent);
 
     if (bBox)
     {
         UBorder* Border = NewObject<UBorder>(Parent);
+        Border->SetPadding(Margin);          
         Border->SetContent(VBox);
-        AddChildSlotRule(Parent, Border, SlotRule, FMargin(6));
+
+        AddChildSlotRule(Parent, Border, SlotRule);
     }
     else
     {
-        AddChildSlotRule(Parent, VBox, SlotRule);
+        AddChildSlotRule(Parent, VBox, SlotRule, Margin); 
     }
 
     Handle->Push(VBox);
@@ -374,13 +381,17 @@ UQEWB_WindowHandle* UQEWB_Subsystem::EndVertical(UQEWB_WindowHandle* Handle)
 
 }
 
-UQEWB_WindowHandle* UQEWB_Subsystem::BeginHorizontal(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule)
+UQEWB_WindowHandle* UQEWB_Subsystem::BeginHorizontal(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule, FMargin Margin)
 {
+    if (!Handle) return nullptr;
+
     UPanelWidget* Parent = RequireContainer(Handle);
-    if (!Parent || !Handle) return NULL;
+    if (!Parent) return nullptr;
 
     UHorizontalBox* HBox = NewObject<UHorizontalBox>(Parent);
-    AddChildSlotRule(Parent, HBox, SlotRule);
+
+    AddChildSlotRule(Parent, HBox, SlotRule, Margin); 
+
     Handle->Push(HBox);
 
     return Handle;
@@ -419,62 +430,68 @@ UQEWB_WindowHandle* UQEWB_Subsystem::EndScrollView(UQEWB_WindowHandle* Handle)
 
 }
 
-UQEWB_WindowHandle* UQEWB_Subsystem::BeginFoldout(UQEWB_WindowHandle* Handle, FName Id, const FText& HeaderText, bool bDefaultExpanded, EQEWB_SlotRule SlotRule)
+UQEWB_WindowHandle* UQEWB_Subsystem::BeginFoldout(
+    UQEWB_WindowHandle* Handle,
+    FName Id,
+    const FText& HeaderText,
+    bool bDefaultExpanded,
+    EQEWB_SlotRule SlotRule
+)
 {
-    UPanelWidget* Parent = RequireContainer(Handle);
-    if (!Parent || !Handle) return NULL;
+    if (!Handle) return nullptr;
 
+    UPanelWidget* Parent = RequireContainer(Handle);
+    if (!Parent) return nullptr;
+
+    // Persist expanded state
     if (!Handle->BoolValues.Contains(Id))
     {
         Handle->BoolValues.Add(Id, bDefaultExpanded);
     }
     const bool bExpanded = Handle->BoolValues[Id];
 
-    UVerticalBox* FoldRoot = NewObject<UVerticalBox>(Parent);
-    AddChildSlotRule(Parent, FoldRoot, SlotRule);
+    // Create ExpandableArea
+    UExpandableArea* Area = NewObject<UExpandableArea>(Parent);
 
-    UButton* HeaderBtn = NewObject<UButton>(FoldRoot);
-    AddChildSlotRule(FoldRoot, HeaderBtn, EQEWB_SlotRule::Auto);
+    TArray<FName> SlotNames;
+    Area->GetSlotNames(SlotNames);
 
-    UTextBlock* HeaderLabel = NewObject<UTextBlock>(HeaderBtn);
+
+    // Header widget
+    UTextBlock* HeaderLabel = NewObject<UTextBlock>(Area);
     HeaderLabel->SetText(HeaderText);
-    HeaderBtn->AddChild(HeaderLabel);
 
-    UVerticalBox* Content = NewObject<UVerticalBox>(FoldRoot);
-    AddChildSlotRule(FoldRoot, Content, EQEWB_SlotRule::Fill, FMargin(4, 4, 0, 6));
-    Content->SetVisibility(bExpanded ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    FSlateFontInfo FontInfo = FAppStyle::GetFontStyle(TEXT("NormalFont"));
+    HeaderLabel->SetFont(FontInfo);
 
-    UQEWB_FoldoutProxy* Proxy = NewObject<UQEWB_FoldoutProxy>(HeaderBtn);
+    // Body widget (this is what we'll push to your layout stack)
+    UVerticalBox* Content = NewObject<UVerticalBox>(Area);
+
+    // ✅ Named slots are the robust API
+    Area->SetContentForSlot(FName("Header"), HeaderLabel);
+    Area->SetContentForSlot(FName("Body"), Content);
+    Area->SetIsExpanded(bExpanded);
+
+    Area->SynchronizeProperties();
+    AddChildSlotRule(Parent, Area, SlotRule);
+
+    // Expansion changed -> sync to BoolValues
+    UQEWB_ExpandableAreaProxy* Proxy = NewObject<UQEWB_ExpandableAreaProxy>(Area);
     Proxy->Handle = Handle;
     Proxy->Id = Id;
-    Proxy->Content = Content;
-    HeaderBtn->OnClicked.AddDynamic(Proxy, &UQEWB_FoldoutProxy::Toggle);
+    Area->OnExpansionChanged.AddDynamic(Proxy, &UQEWB_ExpandableAreaProxy::OnExpansionChanged);
 
+    Handle->OwnedUObjects.Add(Proxy);
+
+    // Push body container so subsequent widgets go inside
     Handle->Push(Content);
 
     return Handle;
-
 }
 
 UQEWB_WindowHandle* UQEWB_Subsystem::EndFoldout(UQEWB_WindowHandle* Handle)
 {
     if (Handle) Handle->Pop();
-
-    return Handle;
-
-}
-
-UQEWB_WindowHandle* UQEWB_Subsystem::BeginToolbar(UQEWB_WindowHandle* Handle, EQEWB_SlotRule SlotRule)
-{
-    BeginHorizontal(Handle, SlotRule);
-
-    return Handle;
-
-}
-
-UQEWB_WindowHandle* UQEWB_Subsystem::EndToolbar(UQEWB_WindowHandle* Handle)
-{
-    EndHorizontal(Handle);
 
     return Handle;
 
@@ -503,7 +520,8 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddSeparator(UQEWB_WindowHandle* Handle, EQ
 
     USizeBox* SB = NewObject<USizeBox>(Line);
     SB->SetHeightOverride(1.f);
-    Line->SetContent(SB);
+
+    //Line->SetContent(SB);
 
     return Handle;
 
@@ -565,37 +583,96 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddButton(UQEWB_WindowHandle* Handle,
 
 }
 
-UQEWB_WindowHandle* UQEWB_Subsystem::AddToggle(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, bool bDefaultValue, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style)
+static FSlateBrush MakeBoxBrush(const FLinearColor& Tint)
 {
-    if (!Handle) return NULL;
+    FSlateBrush B;
+    B.DrawAs = ESlateBrushDrawType::Box;
+    B.TintColor = Tint;
+    B.Margin = FMargin(0.25f);
+    return B;
+}
+
+static FSlateBrush MakeImageBrush(const FLinearColor& Tint)
+{
+    FSlateBrush B;
+    B.DrawAs = ESlateBrushDrawType::Image;
+    B.TintColor = Tint;
+    return B;
+}
+
+UQEWB_WindowHandle* UQEWB_Subsystem::AddToggle(
+    UQEWB_WindowHandle* Handle,
+    FName Id,
+    const FText& LabelText,
+    bool bDefaultValue,
+    EQEWB_SlotRule SlotRule,
+    FQEWB_TextStyle TextStyle
+)
+{
+    if (!Handle) return nullptr;
 
     if (!Handle->BoolValues.Contains(Id))
     {
         Handle->BoolValues.Add(Id, bDefaultValue);
     }
 
-    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
-    if (!Row) return Handle;
+    // Create a clean row manually
+    UPanelWidget* Parent = Handle->LayoutStack.Num() > 0 ? Handle->LayoutStack.Last() : nullptr;
+    if (!Parent) return Handle;
 
+    UHorizontalBox* Row = NewObject<UHorizontalBox>(Parent);
+    Parent->AddChild(Row);
+
+    // -----------------------
+    // CHECKBOX
+    // -----------------------
     UCheckBox* CB = NewObject<UCheckBox>(Row);
     CB->SetIsChecked(Handle->BoolValues[Id]);
 
-    UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(CB);
-    Slot->SetSize(FSlateChildSize((SlotRule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill));
+    // Important: Use default editor style (this gives proper tick)
+    CB->SetWidgetStyle(FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("Checkbox"));
 
-    Slot->SetPadding(FMargin(0, 2, 0, 2));
-    Slot->SetHorizontalAlignment(HAlign_Fill);
-    Slot->SetVerticalAlignment(VAlign_Center);
+    UHorizontalBoxSlot* ToggleSlot = Row->AddChildToHorizontalBox(CB);
+    ToggleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Automatic));
+    ToggleSlot->SetPadding(FMargin(0.f, 2.f, 6.f, 2.f));
+    ToggleSlot->SetHorizontalAlignment(HAlign_Left);
+    ToggleSlot->SetVerticalAlignment(VAlign_Center);
 
+    // -----------------------
+    // LABEL
+    // -----------------------
+    UTextBlock* Label = NewObject<UTextBlock>(Row);
+    Label->SetText(LabelText);
+
+    // Proper editor font
+    FSlateFontInfo FontInfo = FAppStyle::GetFontStyle(TEXT("NormalFont"));
+    FontInfo.Size = TextStyle.FontSize;
+    Label->SetFont(FontInfo);
+    Label->SetColorAndOpacity(TextStyle.FontColor);
+
+    UHorizontalBoxSlot* TextSlot = Row->AddChildToHorizontalBox(Label);
+    TextSlot->SetSize(FSlateChildSize(
+        (SlotRule == EQEWB_SlotRule::Auto)
+        ? ESlateSizeRule::Automatic
+        : ESlateSizeRule::Fill
+    ));
+    TextSlot->SetPadding(FMargin(0.f, 2.f, 0.f, 2.f));
+    TextSlot->SetHorizontalAlignment(HAlign_Left);
+    TextSlot->SetVerticalAlignment(VAlign_Center);
+
+    // -----------------------
+    // BIND
+    // -----------------------
     UQEWB_CheckboxProxy* Proxy = NewObject<UQEWB_CheckboxProxy>(CB);
     Proxy->Handle = Handle;
     Proxy->Id = Id;
+
     CB->OnCheckStateChanged.AddDynamic(Proxy, &UQEWB_CheckboxProxy::OnChanged);
 
-    Handle->RegisterWidget(Id, (UWidget*)CB);
+    Handle->OwnedUObjects.Add(Proxy);
+    Handle->RegisterWidget(Id, CB);
 
     return Handle;
-
 }
 
 UQEWB_WindowHandle* UQEWB_Subsystem::AddTextField(UQEWB_WindowHandle* Handle,
@@ -613,7 +690,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddTextField(UQEWB_WindowHandle* Handle,
         Handle->StringValues.Add(Id, DefaultValue);
     }
 
-    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule, TextStyle);
     if (!Row) return Handle;
 
     UEditableTextBox* TB = NewObject<UEditableTextBox>(Row);
@@ -634,15 +711,126 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddTextField(UQEWB_WindowHandle* Handle,
     Handle->RegisterWidget(Id, (UWidget*)TB);
 
     TB->WidgetStyle.BackgroundColor = BgStyle.BackgroundColor;
-
-    TB->WidgetStyle.SetFont(TB->WidgetStyle.Font_DEPRECATED.TypefaceFontName, TextStyle.FontSize);
+    FTextBlockStyle st = TB->WidgetStyle.TextStyle;
+    st.SetFontSize(TextStyle.FontSize);
+    TB->WidgetStyle.SetTextStyle(st);
+    //TB->WidgetStyle.SetFont(FName(TB->GetDefaultFontName()),);
     TB->SetForegroundColor(TextStyle.FontColor);
 
     return Handle;
 
 }
 
-UQEWB_WindowHandle* UQEWB_Subsystem::AddEnumPopup(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UEnum* EnumType, int32 DefaultValue, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddStringDropdown(
+        UQEWB_WindowHandle* Handle,
+        FName Id,
+        const FText& LabelText,
+        const TArray<FString>& Options,
+        const FString& DefaultValue,
+        EQEWB_SlotRule SlotRule,
+        FQEWB_TextStyle TextStyle
+    )
+{
+    if (!Handle) return nullptr;
+
+    // Store current value
+    if (!Handle->StringValues.Contains(Id))
+    {
+        Handle->StringValues.Add(Id, DefaultValue);
+    }
+
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule, TextStyle);
+    if (!Row) return Handle;
+
+    UComboBoxString* Combo = NewObject<UComboBoxString>(Row);
+
+    // Populate
+    Combo->ClearOptions();
+    for (const FString& Opt : Options)
+    {
+        Combo->AddOption(Opt);
+    }
+
+    // Pick default (fallback to first option if empty/invalid)
+    FString ToSelect = Handle->StringValues[Id];
+    if (!Options.Contains(ToSelect) && Options.Num() > 0)
+    {
+        ToSelect = Options[0];
+        Handle->StringValues[Id] = ToSelect;
+    }
+
+    if (!ToSelect.IsEmpty())
+    {
+        Combo->SetSelectedOption(ToSelect);
+    }
+
+    // Slot layout
+    UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(Combo);
+    Slot->SetSize(FSlateChildSize((SlotRule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill));
+    Slot->SetPadding(FMargin(0, 2, 0, 2));
+    Slot->SetHorizontalAlignment(HAlign_Fill);
+    Slot->SetVerticalAlignment(VAlign_Center);
+
+    // ----- Bind selection changed (proxy) -----
+    UQEWB_ComboSelectionProxy* SelProxy = NewObject<UQEWB_ComboSelectionProxy>(Combo);
+    SelProxy->Handle = Handle;
+    SelProxy->Id = Id;
+
+    Combo->OnSelectionChanged.AddDynamic(SelProxy, &UQEWB_ComboSelectionProxy::OnSelectionChanged);
+
+    // ----- Bind row generation (proxy) to improve the popup look -----
+    UQEWB_ComboBoxProxy* RowProxy = NewObject<UQEWB_ComboBoxProxy>(Combo);
+    RowProxy->ItemTextColor = FLinearColor::White;
+    RowProxy->ItemPadding = FMargin(10.f, 4.f);
+
+    FComboBoxStyle NewStyle = Combo->WidgetStyle;
+
+    auto MakeBrush = [](const FLinearColor& Tint)
+        {
+            FSlateBrush B;
+            B.DrawAs = ESlateBrushDrawType::Box;
+            B.TintColor = Tint;
+            B.Margin = FMargin(0.25f);
+            return B;
+        };
+
+    NewStyle.ComboButtonStyle.ButtonStyle.Normal = MakeBrush(FLinearColor(0.14f, 0.14f, 0.14f, 1));
+    NewStyle.ComboButtonStyle.ButtonStyle.Hovered = MakeBrush(FLinearColor(0.20f, 0.20f, 0.20f, 1));
+    NewStyle.ComboButtonStyle.ButtonStyle.Pressed = MakeBrush(FLinearColor(0.08f, 0.08f, 0.08f, 1));
+    NewStyle.ComboButtonStyle.ButtonStyle.Disabled = MakeBrush(FLinearColor(0.10f, 0.10f, 0.10f, 0.45f));
+    NewStyle.ComboButtonStyle.ContentPadding = FMargin(10.f, 4.f);
+
+    Combo->WidgetStyle = NewStyle;
+
+    // Dropdown height
+    Combo->MaxListHeight = 280.f;
+
+    // Row background style (affects hover/selection backgrounds)
+    FTableRowStyle RowStyle = Combo->ItemStyle;
+    RowStyle.SetEvenRowBackgroundBrush(MakeBrush(FLinearColor(0.14f, 0.14f, 0.14f, 1)));
+    RowStyle.SetOddRowBackgroundBrush(MakeBrush(FLinearColor(0.14f, 0.14f, 0.14f, 1)));
+    RowStyle.SetActiveBrush(MakeBrush(FLinearColor(0.25f, 0.25f, 0.25f, 1)));
+    RowStyle.SetActiveHoveredBrush(MakeBrush(FLinearColor(0.25f, 0.25f, 0.25f, 1)));
+    RowStyle.SetInactiveBrush(MakeBrush(FLinearColor(0.14f, 0.14f, 0.14f, 1)));
+    RowStyle.SetInactiveHoveredBrush(MakeBrush(FLinearColor(0.20f, 0.20f, 0.20f, 1)));
+
+    Combo->ItemStyle = RowStyle;
+
+    Combo->SynchronizeProperties();
+
+    // Keep proxies alive if needed (recommended if you have GC issues / multi-window):
+    Handle->OwnedUObjects.Add(SelProxy);
+    Handle->OwnedUObjects.Add(RowProxy);
+
+    Handle->RegisterWidget(Id, Combo);
+
+    // Apply style if you have your own combobox styling helper:
+    // ApplyComboBoxStyle(Combo, MyComboStyle);
+
+    return Handle;
+}
+
+UQEWB_WindowHandle* UQEWB_Subsystem::AddEnumDropdown(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UEnum* EnumType, int32 DefaultValue, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style, FQEWB_ComboStyle ComboStyle)
 {
     if (!Handle || !EnumType) return NULL;
 
@@ -651,7 +839,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddEnumPopup(UQEWB_WindowHandle* Handle, FN
         Handle->IntValues.Add(Id, DefaultValue);
     }
 
-    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule, Style);
     if (!Row) return Handle;
 
     UComboBoxString* Combo = NewObject<UComboBoxString>(Row);
@@ -683,13 +871,48 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddEnumPopup(UQEWB_WindowHandle* Handle, FN
     Combo->ForegroundColor = Style.FontColor; 
     Handle->RegisterWidget(Id, (UWidget*)Combo);
 
+    FComboBoxStyle NewStyle = Combo->WidgetStyle;
+
+    auto MakeBrush = [](const FLinearColor& Tint)
+        {
+            FSlateBrush B;
+            B.DrawAs = ESlateBrushDrawType::Box;
+            B.TintColor = Tint;
+            B.Margin = FMargin(0.25f);
+            return B;
+        };
+
+    NewStyle.ComboButtonStyle.ButtonStyle.Normal = MakeBrush(FLinearColor(0.14f, 0.14f, 0.14f, 1));
+    NewStyle.ComboButtonStyle.ButtonStyle.Hovered = MakeBrush(FLinearColor(0.20f, 0.20f, 0.20f, 1));
+    NewStyle.ComboButtonStyle.ButtonStyle.Pressed = MakeBrush(FLinearColor(0.08f, 0.08f, 0.08f, 1));
+    NewStyle.ComboButtonStyle.ButtonStyle.Disabled = MakeBrush(FLinearColor(0.10f, 0.10f, 0.10f, 0.45f));
+    NewStyle.ComboButtonStyle.ContentPadding = FMargin(10.f, 4.f);
+
+    Combo->WidgetStyle = NewStyle;
+
+    // Dropdown height
+    Combo->MaxListHeight = 280.f;
+
+    // Row background style (affects hover/selection backgrounds)
+    FTableRowStyle RowStyle = Combo->ItemStyle;
+    RowStyle.SetEvenRowBackgroundBrush(MakeBrush(FLinearColor(0.14f, 0.14f, 0.14f, 1)));
+    RowStyle.SetOddRowBackgroundBrush(MakeBrush(FLinearColor(0.14f, 0.14f, 0.14f, 1)));
+    RowStyle.SetActiveBrush(MakeBrush(FLinearColor(0.25f, 0.25f, 0.25f, 1)));
+    RowStyle.SetActiveHoveredBrush(MakeBrush(FLinearColor(0.25f, 0.25f, 0.25f, 1)));
+    RowStyle.SetInactiveBrush(MakeBrush(FLinearColor(0.14f, 0.14f, 0.14f, 1)));
+    RowStyle.SetInactiveHoveredBrush(MakeBrush(FLinearColor(0.20f, 0.20f, 0.20f, 1)));
+
+    Combo->ItemStyle = RowStyle;
+
+    Combo->SynchronizeProperties();
+
     return Handle;
 
 
 
 }
 
-UQEWB_WindowHandle* UQEWB_Subsystem::AddObjectPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* AllowedClass, UObject* DefaultObject, EQEWB_SlotRule SlotRule)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddObjectPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* AllowedClass, UObject* DefaultObject, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style)
 {
     if (!Handle || !AllowedClass) return NULL;
 
@@ -698,7 +921,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddObjectPicker(UQEWB_WindowHandle* Handle,
         Handle->ObjectValues.Add(Id, DefaultObject);
     }
 
-    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule, Style);
     if (!Row) return Handle;
 
     UQEWB_ObjectPickerModel* Model = NewObject<UQEWB_ObjectPickerModel>(Handle);
@@ -730,7 +953,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddObjectPicker(UQEWB_WindowHandle* Handle,
 
 }
 
-UQEWB_WindowHandle* UQEWB_Subsystem::AddClassPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* BaseClass, UClass* DefaultClass, EQEWB_SlotRule SlotRule)
+UQEWB_WindowHandle* UQEWB_Subsystem::AddClassPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UClass* BaseClass, UClass* DefaultClass, EQEWB_SlotRule SlotRule, FQEWB_TextStyle Style)
 {
     if (!Handle || !BaseClass) return NULL;
 
@@ -739,7 +962,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddClassPicker(UQEWB_WindowHandle* Handle, 
         Handle->ClassValues.Add(Id, DefaultClass ? DefaultClass : BaseClass);
     }
 
-    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule, Style);
     if (!Row) return Handle;
 
     UQEWB_ClassPickerModel* Model = NewObject<UQEWB_ClassPickerModel>(Handle);
