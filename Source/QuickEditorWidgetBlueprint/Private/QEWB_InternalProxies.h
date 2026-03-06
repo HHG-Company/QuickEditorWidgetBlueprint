@@ -93,7 +93,6 @@ public:
     UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle;
     UPROPERTY() FName Id = NAME_None;
     UPROPERTY() TObjectPtr<UObject> Model = nullptr;
-    UPROPERTY() TObjectPtr<UClass> FilterClass = nullptr;
     UPROPERTY() bool bIsClassPicker = false;
 
     UFUNCTION() void OnPropertyChanged(FName PropertyName);

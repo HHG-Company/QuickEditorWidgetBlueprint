@@ -1,10 +1,15 @@
-#include "QEWB_InternalProxies.h"
+﻿#include "QEWB_InternalProxies.h"
 #include "Components/VerticalBox.h"
 
 #include "Components/TextBlock.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ExpandableArea.h"
+
+#include "Styling/AppStyle.h"
+#include "Styling/SlateTypes.h"
+#include "QEWB_Style.h"
+
 
 void UQEWB_ButtonProxy::OnClicked()
 {
@@ -52,27 +57,22 @@ void UQEWB_TextProxy::OnTextChanged(const FText& NewText)
 
 void UQEWB_ComboProxy::OnSelectionChanged(FString SelectedItem, ESelectInfo::Type)
 {
-    if (!Handle || !EnumType) return;
+    if (!Handle) return;
 
-    int32 FoundIndex = INDEX_NONE;
-    for (int32 i = 0; i < EnumType->NumEnums(); ++i)
-    {
-        if (EnumType->GetDisplayNameTextByIndex(i).ToString() == SelectedItem)
-        {
-            FoundIndex = i;
-            break;
-        }
-    }
-    if (FoundIndex == INDEX_NONE) return;
-
-    Handle->IntValues.FindOrAdd(Id) = FoundIndex;
-    Handle->NotifyIntChanged(Id, FoundIndex);
+    Handle->StringValues.FindOrAdd(Id) = SelectedItem;
+    Handle->NotifyStringChanged(Id, SelectedItem);
 
     FQEWB_Event E;
-    E.Type = EQEWB_EventType::SelectionChanged;
+    /*E.Type = EQEWB_EventType::SelectionChanged;
     E.Id = Id;
     E.ValueType = EQEWB_ValueType::Int;
     E.IntValue = FoundIndex;
+    Handle->Emit(E);*/
+
+    E.Type = EQEWB_EventType::SelectionChanged;
+    E.Id = Id;
+    E.ValueType = EQEWB_ValueType::String;
+    E.StringValue = SelectedItem;
     Handle->Emit(E);
 }
 
@@ -84,62 +84,73 @@ void UQEWB_ExpandableAreaProxy::OnExpansionChanged(UExpandableArea* Area, bool b
 
 void UQEWB_PropertyViewProxy::OnPropertyChanged(FName)
 {
-    if (!Handle || !Model) return;
+    if (!Handle || !Model)
+    {
+        return;
+    }
 
     if (bIsClassPicker)
     {
-        UQEWB_ClassPickerModel* M = Cast<UQEWB_ClassPickerModel>(Model);
-        if (!M) return;
-
-        if (FilterClass && M->SelectedClass && !M->SelectedClass->IsChildOf(FilterClass))
+        UQEWB_ClassPickerModel* ClassModel = Cast<UQEWB_ClassPickerModel>(Model);
+        if (!ClassModel)
         {
-            M->SelectedClass = FilterClass;
+            return;
         }
 
-        Handle->ClassValues.FindOrAdd(Id) = M->SelectedClass;
-        Handle->NotifyClassChanged(Id, M->SelectedClass);
+        UClass* Picked = ClassModel->SelectedClass;
+
+        ClassModel->SelectedClass = Picked;
+      
+
+        Handle->ClassValues.FindOrAdd(Id) = Picked;
+        Handle->NotifyClassChanged(Id, Picked);
 
         FQEWB_Event E;
         E.Type = EQEWB_EventType::SelectionChanged;
         E.Id = Id;
         E.ValueType = EQEWB_ValueType::Class;
-        E.ClassValue = M->SelectedClass;
+        E.ClassValue = Picked;
         Handle->Emit(E);
         return;
     }
 
-    UQEWB_ObjectPickerModel* OM = Cast<UQEWB_ObjectPickerModel>(Model);
-    if (!OM) return;
-
-    if (FilterClass && OM->SelectedObject && !OM->SelectedObject->IsA(FilterClass))
+    UQEWB_ObjectPickerModel* ObjectModel = Cast<UQEWB_ObjectPickerModel>(Model);
+    if (!ObjectModel)
     {
-        OM->SelectedObject = nullptr;
+        return;
     }
 
-    Handle->ObjectValues.FindOrAdd(Id) = OM->SelectedObject;
-    Handle->NotifyObjectChanged(Id, OM->SelectedObject);
+    UObject* Picked = ObjectModel->SelectedObject;
+
+    Handle->ObjectValues.FindOrAdd(Id) = Picked;
+    Handle->NotifyObjectChanged(Id, Picked);
 
     FQEWB_Event E;
     E.Type = EQEWB_EventType::SelectionChanged;
     E.Id = Id;
     E.ValueType = EQEWB_ValueType::Object;
-    E.ObjectValue = OM->SelectedObject;
+    E.ObjectValue = Picked;
     Handle->Emit(E);
 }
 
 
 UWidget* UQEWB_ComboBoxProxy::GenerateWidget(FString Item) 
 {
-    UHorizontalBox* Box = NewObject<UHorizontalBox>(GetTransientPackage());
+    UObject* OuterObj = GetOuter() ? GetOuter() : GetTransientPackage();
+
+    UHorizontalBox* Box = NewObject<UHorizontalBox>(OuterObj);
 
     UTextBlock* T = NewObject<UTextBlock>(Box);
     T->SetText(FText::FromString(Item));
-    T->SetColorAndOpacity(ItemTextColor);
 
-    UHorizontalBoxSlot* Slot = Box->AddChildToHorizontalBox(T);
-    Slot->SetPadding(ItemPadding);
-    Slot->SetHorizontalAlignment(HAlign_Fill);
-    Slot->SetVerticalAlignment(VAlign_Center);
+    FQEWB_UnrealTheme::Apply(T);
+
+
+    if (UHorizontalBoxSlot* Slot = Box->AddChildToHorizontalBox(T))
+    {
+        Slot->SetPadding(FMargin(8.f, 2.f));
+        Slot->SetVerticalAlignment(VAlign_Center);
+    }
 
     return Box;
 }
@@ -148,9 +159,6 @@ UWidget* UQEWB_ComboBoxProxy::GenerateWidget(FString Item)
 void UQEWB_ComboSelectionProxy::OnSelectionChanged(FString SelectedItem, ESelectInfo::Type SelectionType)
 {
     if (!Handle) return;
-
-    // If you only want user selections, you can filter:
-    // if (SelectionType == ESelectInfo::Direct) return; // (depends on your needs)
 
     FQEWB_Event E;
     E.Type = EQEWB_EventType::ValueChanged;

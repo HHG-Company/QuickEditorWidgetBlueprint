@@ -68,6 +68,13 @@ public:
     UPROPERTY(Transient) TMap<FName, TObjectPtr<UObject>> ObjectValues;
     UPROPERTY(Transient) TMap<FName, TObjectPtr<UClass>> ClassValues;
 
+    UPROPERTY(Transient)
+    TMap<FName, TObjectPtr<UObject>> PickerModelsById;
+
+    UPROPERTY(Transient)
+    TMap<FName, TObjectPtr<UObject>> PickerProxiesById;
+
+
     // Store actual widget instances per element Id
     UPROPERTY(Transient)
     TMap<FName, TObjectPtr<UWidget>> WidgetsById;
@@ -127,7 +134,10 @@ public:
     {
         if (FQEWB_BoolChanged* D = OnBoolChangedById.Find(Id))
         {
-            if (D->IsBound()) { D->Execute(NewValue); }
+            if (D->IsBound()) 
+            { 
+                D->Execute(NewValue); 
+            }
         }
     }
 
@@ -135,7 +145,10 @@ public:
     {
         if (FQEWB_IntChanged* D = OnIntChangedById.Find(Id))
         {
-            if (D->IsBound()) { D->Execute(NewValue); }
+            if (D->IsBound()) 
+            { 
+                D->Execute(NewValue); 
+            }
         }
     }
 
@@ -143,7 +156,10 @@ public:
     {
         if (FQEWB_FloatChanged* D = OnFloatChangedById.Find(Id))
         {
-            if (D->IsBound()) { D->Execute(NewValue); }
+            if (D->IsBound()) 
+            { 
+                D->Execute(NewValue); 
+            }
         }
     }
 
@@ -151,7 +167,10 @@ public:
     {
         if (FQEWB_StringChanged* D = OnStringChangedById.Find(Id))
         {
-            if (D->IsBound()) { D->Execute(NewValue); }
+            if (D->IsBound()) 
+            { 
+                D->Execute(NewValue); 
+            }
         }
     }
 
@@ -159,7 +178,10 @@ public:
     {
         if (FQEWB_NameChanged* D = OnNameChangedById.Find(Id))
         {
-            if (D->IsBound()) { D->Execute(NewValue); }
+            if (D->IsBound()) 
+            { 
+                D->Execute(NewValue); 
+            }
         }
     }
 
@@ -167,7 +189,10 @@ public:
     {
         if (FQEWB_ObjectChanged* D = OnObjectChangedById.Find(Id))
         {
-            if (D->IsBound()) { D->Execute(NewValue); }
+            if (D->IsBound()) 
+            { 
+                D->Execute(NewValue); 
+            }
         }
     }
 
@@ -175,7 +200,7 @@ public:
     {
         if (FQEWB_ClassChanged* D = OnClassChangedById.Find(Id))
         {
-            if (D->IsBound()) { D->Execute(NewValue); }
+            D->ExecuteIfBound(NewValue);            
         }
     }
 
@@ -183,7 +208,7 @@ public:
     {
         if (FQEWB_ButtonClicked* D = OnButtonClickedById.Find(Id))
         {
-            if (D->IsBound()) { D->Execute(); }
+            D->ExecuteIfBound();            
         }
     }
 
@@ -192,6 +217,95 @@ public:
         if (Widget && Id != NAME_None)
         {
             WidgetsById.Add(Id, Widget);
+            NotifyAll();
+        }
+
+    }
+
+    void NotifyAll() 
+    {
+        for (const TPair<FName, bool>& Pair : BoolValues)
+        {
+            NotifyBoolChanged(Pair.Key, Pair.Value);
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::ValueChanged;
+            E.Id = Pair.Key;
+            E.ValueType = EQEWB_ValueType::Bool;
+            E.BoolValue = Pair.Value;
+            Emit(E);
+        }
+
+        for (const TPair<FName, int32>& Pair : IntValues)
+        {
+            NotifyIntChanged(Pair.Key, Pair.Value);
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::ValueChanged;
+            E.Id = Pair.Key;
+            E.ValueType = EQEWB_ValueType::Int;
+            E.IntValue = Pair.Value;
+            Emit(E);
+        }
+
+        for (const TPair<FName, float>& Pair : FloatValues)
+        {
+            NotifyFloatChanged(Pair.Key, Pair.Value);
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::ValueChanged;
+            E.Id = Pair.Key;
+            E.ValueType = EQEWB_ValueType::Float;
+            E.FloatValue = Pair.Value;
+            Emit(E);
+        }
+
+        for (const TPair<FName, FString>& Pair : StringValues)
+        {
+            NotifyStringChanged(Pair.Key, Pair.Value);
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::ValueChanged;
+            E.Id = Pair.Key;
+            E.ValueType = EQEWB_ValueType::String;
+            E.StringValue = Pair.Value;
+            Emit(E);
+        }
+
+        for (const TPair<FName, FName>& Pair : NameValues)
+        {
+            NotifyNameChanged(Pair.Key, Pair.Value);
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::ValueChanged;
+            E.Id = Pair.Key;
+            E.ValueType = EQEWB_ValueType::Name;
+            E.NameValue = Pair.Value;
+            Emit(E);
+        }
+
+        for (const TPair<FName, TObjectPtr<UObject>>& Pair : ObjectValues)
+        {
+            NotifyObjectChanged(Pair.Key, Pair.Value);
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::SelectionChanged;
+            E.Id = Pair.Key;
+            E.ValueType = EQEWB_ValueType::Object;
+            E.ObjectValue = Pair.Value;
+            Emit(E);
+        }
+
+        for (const TPair<FName, TObjectPtr<UClass>>& Pair : ClassValues)
+        {
+            NotifyClassChanged(Pair.Key, Pair.Value);
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::SelectionChanged;
+            E.Id = Pair.Key;
+            E.ValueType = EQEWB_ValueType::Class;
+            E.ClassValue = Pair.Value;
+            Emit(E);
         }
     }
 };
