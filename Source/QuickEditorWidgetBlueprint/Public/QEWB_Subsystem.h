@@ -154,5 +154,5 @@ public:
     static UQEWB_WindowHandle* BindClassChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_ClassChanged Callback);
 
     UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Callbacks")
-    static void BroadcastCurrentValues(UQEWB_WindowHandle* Handle);
+    static UQEWB_WindowHandle* BroadcastCurrentValues(UQEWB_WindowHandle* Handle);
 };

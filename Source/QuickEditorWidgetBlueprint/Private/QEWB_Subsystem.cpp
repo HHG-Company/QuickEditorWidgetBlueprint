@@ -1043,15 +1043,16 @@ UQEWB_WindowHandle* UQEWB_Subsystem::BindClassChanged(UQEWB_WindowHandle* Handle
 
 }
 
-void UQEWB_Subsystem::BroadcastCurrentValues(UQEWB_WindowHandle* Handle)
+UQEWB_WindowHandle* UQEWB_Subsystem::BroadcastCurrentValues(UQEWB_WindowHandle* Handle)
 {
     if (!Handle)
     {
-        return;
+        return NULL;
     }
 
-    // Buttons usually should NOT auto-fire on show.
-    // They are actions, not state.
+
     Handle->NotifyAll();
+
+    return Handle;
     
 }
