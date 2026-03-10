@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0.0",
 	"FriendlyName": "QuickEditorUtilityWidget",
-	"Description": "Unity-like immediate-mode layout API for Editor Utility Widgets (Blueprint-friendly).",
+	"Description": "Unity-like immediate-mode layout API for Editor Utility Widgets",
 	"Category": "Editor",
 	"CreatedBy": "Heaven And Hell Games UG",
 	"CreatedByURL": "www.heaven-and-hell-games.de",
