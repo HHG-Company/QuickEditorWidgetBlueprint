@@ -60,13 +60,20 @@ public:
     UPROPERTY(Transient)
     float ControlFill = 0.65f;
 
-    UPROPERTY(Transient) TMap<FName, bool> BoolValues;
-    UPROPERTY(Transient) TMap<FName, int32> IntValues;
-    UPROPERTY(Transient) TMap<FName, float> FloatValues;
-    UPROPERTY(Transient) TMap<FName, FString> StringValues;
-    UPROPERTY(Transient) TMap<FName, FName> NameValues;
-    UPROPERTY(Transient) TMap<FName, TObjectPtr<UObject>> ObjectValues;
-    UPROPERTY(Transient) TMap<FName, TObjectPtr<UClass>> ClassValues;
+    UPROPERTY(Transient) 
+    TMap<FName, bool> BoolValues;
+    UPROPERTY(Transient) 
+    TMap<FName, int32> IntValues;
+    UPROPERTY(Transient) 
+    TMap<FName, float> FloatValues;
+    UPROPERTY(Transient) 
+    TMap<FName, FString> StringValues;
+    UPROPERTY(Transient) 
+    TMap<FName, FName> NameValues;
+    UPROPERTY(Transient) 
+    TMap<FName, TObjectPtr<UObject>> ObjectValues;
+    UPROPERTY(Transient) 
+    TMap<FName, TObjectPtr<UClass>> ClassValues;
 
     UPROPERTY(Transient)
     TMap<FName, TObjectPtr<UObject>> PickerModelsById;
@@ -82,23 +89,36 @@ public:
     UPROPERTY(BlueprintAssignable, Category="QuickEditorWidgetBlueprint|Events")
     FQEWB_OnEvent OnEvent;
 
-    UPROPERTY(Transient) TMap<FName, FQEWB_BoolChanged>   OnBoolChangedById;
-    UPROPERTY(Transient) TMap<FName, FQEWB_IntChanged>    OnIntChangedById;
-    UPROPERTY(Transient) TMap<FName, FQEWB_FloatChanged>  OnFloatChangedById;
-    UPROPERTY(Transient) TMap<FName, FQEWB_StringChanged> OnStringChangedById;
-    UPROPERTY(Transient) TMap<FName, FQEWB_NameChanged>   OnNameChangedById;
-    UPROPERTY(Transient) TMap<FName, FQEWB_ObjectChanged> OnObjectChangedById;
-    UPROPERTY(Transient) TMap<FName, FQEWB_ClassChanged>  OnClassChangedById;
-
-    UPROPERTY(Transient) TMap<FName, FQEWB_ButtonClicked> OnButtonClickedById;
+    UPROPERTY(Transient) 
+    TMap<FName, FQEWB_BoolChanged>   OnBoolChangedById;
+    UPROPERTY(Transient) 
+    TMap<FName, FQEWB_IntChanged>    OnIntChangedById;
+    UPROPERTY(Transient) 
+    TMap<FName, FQEWB_FloatChanged>  OnFloatChangedById;
+    UPROPERTY(Transient) 
+    TMap<FName, FQEWB_StringChanged> OnStringChangedById;
+    UPROPERTY(Transient) 
+    TMap<FName, FQEWB_NameChanged>   OnNameChangedById;
+    UPROPERTY(Transient) 
+    TMap<FName, FQEWB_ObjectChanged> OnObjectChangedById;
+    UPROPERTY(Transient) 
+    TMap<FName, FQEWB_ClassChanged>  OnClassChangedById;
+    UPROPERTY(Transient) 
+    TMap<FName, FQEWB_ButtonClicked> OnButtonClickedById;
 
     UPROPERTY()
     TArray<TObjectPtr<UObject>> OwnedUObjects;
 
 public:
-    UPanelWidget* Current() const { return LayoutStack.Num() > 0 ? LayoutStack.Last() : nullptr; }
+    UPanelWidget* Current() const 
+    { 
+        return LayoutStack.Num() > 0 ? LayoutStack.Last() : nullptr; 
+    }
 
-    void Push(UPanelWidget* Panel) { if (Panel) LayoutStack.Add(Panel); }
+    void Push(UPanelWidget* Panel) 
+    { 
+        if (Panel) LayoutStack.Add(Panel); 
+    }
 
     void Pop()
     {

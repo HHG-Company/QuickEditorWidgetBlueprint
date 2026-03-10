@@ -211,8 +211,6 @@ static TSharedRef<SDockTab> SpawnQEWBTab_Internal(
         {
             if (UQEWB_WindowHandle* Handle = WeakHandle.Get())
             {
-                // Optional: if you have an event system
-                // FQEWB_Event E; E.Type = EQEWB_EventType::Closed; ... Handle->Emit(E);
 
                 if (!Handle->TabId.IsNone())
                 {
@@ -441,24 +439,19 @@ UQEWB_WindowHandle* UQEWB_Subsystem::BeginFoldout(
     }
     const bool bExpanded = Handle->BoolValues[Id];
 
-    // Create ExpandableArea
     UExpandableArea* Area = NewObject<UExpandableArea>(Parent);
 
     TArray<FName> SlotNames;
     Area->GetSlotNames(SlotNames);
 
-
-    // Header widget
     UTextBlock* HeaderLabel = NewObject<UTextBlock>(Area);
     HeaderLabel->SetText(HeaderText);
 
     FSlateFontInfo FontInfo = FAppStyle::GetFontStyle(TEXT("NormalFont"));
     HeaderLabel->SetFont(FontInfo);
 
-    // Body widget (this is what we'll push to your layout stack)
     UVerticalBox* Content = NewObject<UVerticalBox>(Area);
 
-    // ✅ Named slots are the robust API
     Area->SetContentForSlot(FName("Header"), HeaderLabel);
     Area->SetContentForSlot(FName("Body"), Content);
     Area->SetIsExpanded(bExpanded);
@@ -466,7 +459,6 @@ UQEWB_WindowHandle* UQEWB_Subsystem::BeginFoldout(
     Area->SynchronizeProperties();
     AddChildSlotRule(Parent, Area, SlotRule);
 
-    // Expansion changed -> sync to BoolValues
     UQEWB_ExpandableAreaProxy* Proxy = NewObject<UQEWB_ExpandableAreaProxy>(Area);
     Proxy->Handle = Handle;
     Proxy->Id = Id;
@@ -679,6 +671,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddTextField(UQEWB_WindowHandle* Handle,
     Proxy->Handle = Handle;
     Proxy->Id = Id;
     TB->OnTextChanged.AddDynamic(Proxy, &UQEWB_TextProxy::OnTextChanged);
+    Handle->OwnedUObjects.Add(Proxy);
 
     Handle->RegisterWidget(Id, (UWidget*)TB);
 
@@ -797,6 +790,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddEnumDropdown(UQEWB_WindowHandle* Handle,
     Proxy->Handle = Handle;
     Proxy->Id = Id;
     Combo->OnSelectionChanged.AddDynamic(Proxy, &UQEWB_ComboProxy::OnSelectionChanged);
+    Handle->OwnedUObjects.Add(Proxy);
 
     return Handle;
 
@@ -876,6 +870,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddObjectPicker(
     // Ensure stored value is always valid
     UObject* Picked = Model->SelectedObject;
     Handle->ObjectValues[Id] = Picked;
+    Handle->OwnedUObjects.Add(Proxy);
 
     return Handle;
 }
@@ -954,6 +949,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddClassPicker(
     // Ensure stored value is always valid
     UClass* Picked = Model->SelectedClass;    
     Handle->ClassValues[Id] = Picked;
+    Handle->OwnedUObjects.Add(Proxy);
 
     return Handle;
 }
@@ -1050,9 +1046,6 @@ UQEWB_WindowHandle* UQEWB_Subsystem::BroadcastCurrentValues(UQEWB_WindowHandle* 
         return NULL;
     }
 
-
     Handle->NotifyAll();
-
-    return Handle;
-    
+    return Handle;    
 }

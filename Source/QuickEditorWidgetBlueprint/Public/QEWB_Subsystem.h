@@ -44,22 +44,13 @@ public:
 
     // Layout
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
-    static UQEWB_WindowHandle* BeginVertical(
-        UQEWB_WindowHandle* Handle,
-        bool bBox,
-        EQEWB_SlotRule SlotRule,
-        FMargin Margin
-    );
+    static UQEWB_WindowHandle* BeginVertical(UQEWB_WindowHandle* Handle, bool bBox, EQEWB_SlotRule SlotRule, FMargin Margin);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
     static UQEWB_WindowHandle* EndVertical(UQEWB_WindowHandle* Handle);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
-    static UQEWB_WindowHandle* BeginHorizontal(
-        UQEWB_WindowHandle* Handle,
-        EQEWB_SlotRule SlotRule,
-        FMargin Margin
-    );
+    static UQEWB_WindowHandle* BeginHorizontal(UQEWB_WindowHandle* Handle,EQEWB_SlotRule SlotRule, FMargin Margin);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Layout")
     static UQEWB_WindowHandle* EndHorizontal(UQEWB_WindowHandle* Handle);
@@ -87,33 +78,19 @@ public:
     static UQEWB_WindowHandle* AddLabel(UQEWB_WindowHandle* Handle, const FText& Text,EQEWB_SlotRule SlotRule);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
-    static UQEWB_WindowHandle* AddButton(UQEWB_WindowHandle* Handle,
-        FName Id,
-        const FText& Text,
-        EQEWB_SlotRule SlotRule);
+    static UQEWB_WindowHandle* AddButton(UQEWB_WindowHandle* Handle, FName Id, const FText& Text, EQEWB_SlotRule SlotRule);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
     static UQEWB_WindowHandle* AddToggle(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, bool bDefaultValue, EQEWB_SlotRule SlotRule);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
-    static UQEWB_WindowHandle* AddTextField(UQEWB_WindowHandle* Handle,
-        FName Id,
-        const FText& LabelText,
-        const FString& DefaultValue,
-        EQEWB_SlotRule SlotRule);
+    static UQEWB_WindowHandle* AddTextField(UQEWB_WindowHandle* Handle,FName Id, const FText& LabelText, const FString& DefaultValue, EQEWB_SlotRule SlotRule);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
     static UQEWB_WindowHandle* AddEnumDropdown(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UEnum* EnumType, int32 DefaultValue, EQEWB_SlotRule SlotRule);
 
     UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Controls")
-    static UQEWB_WindowHandle* AddStringDropdown(
-        UQEWB_WindowHandle* Handle,
-        FName Id,
-        const FText& LabelText,
-        const TArray<FString>& Options,
-        const FString& DefaultValue,
-        EQEWB_SlotRule SlotRule
-    );
+    static UQEWB_WindowHandle* AddStringDropdown(UQEWB_WindowHandle* Handle,FName Id,const FText& LabelText, const TArray<FString>& Options, const FString& DefaultValue, EQEWB_SlotRule SlotRule);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Controls")
     static UQEWB_WindowHandle* AddObjectPicker(UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, UObject* DefaultObject, EQEWB_SlotRule SlotRule);

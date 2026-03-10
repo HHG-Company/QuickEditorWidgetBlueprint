@@ -15,10 +15,13 @@ class UQEWB_ButtonProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle;
-    UPROPERTY() FName Id = NAME_None;
+    UPROPERTY()
+    TObjectPtr<UQEWB_WindowHandle> Handle;
+    UPROPERTY() 
+    FName Id = NAME_None;
 
-    UFUNCTION() void OnClicked();
+    UFUNCTION() 
+    void OnClicked();
 };
 
 UCLASS()
@@ -26,10 +29,13 @@ class UQEWB_CheckboxProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle;
-    UPROPERTY() FName Id = NAME_None;
+    UPROPERTY()
+    TObjectPtr<UQEWB_WindowHandle> Handle;
+    UPROPERTY() 
+    FName Id = NAME_None;
 
-    UFUNCTION() void OnChanged(bool bIsChecked);
+    UFUNCTION() 
+    void OnChanged(bool bIsChecked);
 };
 
 UCLASS()
@@ -37,10 +43,13 @@ class UQEWB_TextProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle;
-    UPROPERTY() FName Id = NAME_None;
+    UPROPERTY() 
+    TObjectPtr<UQEWB_WindowHandle> Handle;
+    UPROPERTY() 
+    FName Id = NAME_None;
 
-    UFUNCTION() void OnTextChanged(const FText& NewText);
+    UFUNCTION() 
+    void OnTextChanged(const FText& NewText);
 };
 
 UCLASS()
@@ -48,11 +57,15 @@ class UQEWB_ComboProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle;
-    UPROPERTY() FName Id = NAME_None;
-    UPROPERTY() TObjectPtr<UEnum> EnumType = nullptr;
+    UPROPERTY() 
+    TObjectPtr<UQEWB_WindowHandle> Handle;
+    UPROPERTY() 
+    FName Id = NAME_None;
+    UPROPERTY() 
+    TObjectPtr<UEnum> EnumType = nullptr;
 
-    UFUNCTION() void OnSelectionChanged(FString SelectedItem, ESelectInfo::Type Type);
+    UFUNCTION() 
+    void OnSelectionChanged(FString SelectedItem, ESelectInfo::Type Type);
 };
 
 UCLASS()
@@ -60,8 +73,10 @@ class UQEWB_ExpandableAreaProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle = nullptr;
-    UPROPERTY() FName Id;
+    UPROPERTY() 
+    TObjectPtr<UQEWB_WindowHandle> Handle = nullptr;
+    UPROPERTY() 
+    FName Id;
 
     UFUNCTION()
     void OnExpansionChanged(UExpandableArea* Area, bool bIsExpanded);
@@ -91,11 +106,15 @@ class UQEWB_PropertyViewProxy : public UObject
     GENERATED_BODY()
 public:
     UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle;
-    UPROPERTY() FName Id = NAME_None;
-    UPROPERTY() TObjectPtr<UObject> Model = nullptr;
-    UPROPERTY() bool bIsClassPicker = false;
+    UPROPERTY() 
+    FName Id = NAME_None;
+    UPROPERTY()
+    TObjectPtr<UObject> Model = nullptr;
+    UPROPERTY()
+    bool bIsClassPicker = false;
 
-    UFUNCTION() void OnPropertyChanged(FName PropertyName);
+    UFUNCTION() 
+    void OnPropertyChanged(FName PropertyName);
 };
 
 UCLASS()
@@ -103,8 +122,10 @@ class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_ComboBoxProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() FLinearColor ItemTextColor = FLinearColor::White;
-    UPROPERTY() FMargin ItemPadding = FMargin(10.f, 4.f);
+    UPROPERTY() 
+    FLinearColor ItemTextColor = FLinearColor::White;
+    UPROPERTY()
+    FMargin ItemPadding = FMargin(10.f, 4.f);
 
     UFUNCTION()
     UWidget* GenerateWidget(FString Item);
@@ -115,8 +136,10 @@ class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_ComboSelectionProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() TObjectPtr<UQEWB_WindowHandle> Handle = nullptr;
-    UPROPERTY() FName Id;
+    UPROPERTY() 
+    TObjectPtr<UQEWB_WindowHandle> Handle = nullptr;
+    UPROPERTY()
+    FName Id;
 
     UFUNCTION()
     void OnSelectionChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
@@ -127,7 +150,8 @@ class QUICKEDITORWIDGETBLUEPRINT_API UQEWB_ToggleRowProxy : public UObject
 {
     GENERATED_BODY()
 public:
-    UPROPERTY() TObjectPtr<UCheckBox> CheckBox = nullptr;
+    UPROPERTY() 
+    TObjectPtr<UCheckBox> CheckBox = nullptr;
 
     UFUNCTION()
     void OnRowClicked()

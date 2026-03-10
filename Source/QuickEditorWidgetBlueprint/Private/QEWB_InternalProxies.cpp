@@ -63,12 +63,6 @@ void UQEWB_ComboProxy::OnSelectionChanged(FString SelectedItem, ESelectInfo::Typ
     Handle->NotifyStringChanged(Id, SelectedItem);
 
     FQEWB_Event E;
-    /*E.Type = EQEWB_EventType::SelectionChanged;
-    E.Id = Id;
-    E.ValueType = EQEWB_ValueType::Int;
-    E.IntValue = FoundIndex;
-    Handle->Emit(E);*/
-
     E.Type = EQEWB_EventType::SelectionChanged;
     E.Id = Id;
     E.ValueType = EQEWB_ValueType::String;
