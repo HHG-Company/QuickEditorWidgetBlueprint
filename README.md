@@ -1,4 +1,4 @@
-# QuickEditorWidgetBlueprint
+# QuickEditorUtilityWidget
 
 A **Blueprint-friendly UI framework for Unreal Editor tools** inspired by **Unity’s EditorGUILayout**.
 
