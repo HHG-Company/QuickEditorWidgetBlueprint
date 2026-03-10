@@ -1,4 +1,5 @@
 #include "QEWB_HostWidget.h"
+#include "QEWB_WindowHandle.h"
 #include "Blueprint/WidgetTree.h"
 
 void UQEWB_HostWidget::EnsureRoot()
@@ -39,4 +40,15 @@ TSharedRef<SWidget> UQEWB_HostWidget::RebuildWidget()
 {
     EnsureRoot();
     return Super::RebuildWidget();
+}
+
+void UQEWB_HostWidget::NativeDestruct()
+{
+    if (OwningHandle)
+    {
+        OwningHandle->Cleanup();
+        OwningHandle = nullptr;
+    }
+
+    Super::NativeDestruct();
 }

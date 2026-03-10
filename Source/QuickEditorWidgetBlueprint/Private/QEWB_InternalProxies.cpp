@@ -162,3 +162,29 @@ void UQEWB_ComboSelectionProxy::OnSelectionChanged(FString SelectedItem, ESelect
 
     Handle->Emit(E);
 }
+
+void UQEWB_VectorProxy::OnAnyTextChanged(const FText& /*NewText*/)
+{
+    PushValue();
+}
+
+void UQEWB_VectorProxy::PushValue()
+{
+    if (!Handle || !XBox || !YBox || !ZBox) return;
+
+    const double X = FCString::Atod(*XBox->GetText().ToString());
+    const double Y = FCString::Atod(*YBox->GetText().ToString());
+    const double Z = FCString::Atod(*ZBox->GetText().ToString());
+
+    const FVector Value(X, Y, Z);
+
+    Handle->VectorValues.FindOrAdd(Id) = Value;
+    Handle->NotifyVectorChanged(Id, Value);
+
+    FQEWB_Event E;
+    E.Type = EQEWB_EventType::ValueChanged;
+    E.Id = Id;
+    E.ValueType = EQEWB_ValueType::Vector;
+    E.VectorValue = Value;
+    Handle->Emit(E);
+}

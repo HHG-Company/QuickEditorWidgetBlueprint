@@ -19,7 +19,7 @@ DECLARE_DYNAMIC_DELEGATE_OneParam(FQEWB_StringChanged, const FString&, NewValue)
 DECLARE_DYNAMIC_DELEGATE_OneParam(FQEWB_NameChanged, FName, NewValue);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FQEWB_ObjectChanged, UObject*, NewValue);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FQEWB_ClassChanged, UClass*, NewValue);
-
+DECLARE_DYNAMIC_DELEGATE_OneParam(FQEWB_VectorChanged, FVector, NewValue);
 DECLARE_DYNAMIC_DELEGATE(FQEWB_ButtonClicked);
 
 UCLASS(BlueprintType)
@@ -52,6 +52,9 @@ public:
     TArray<FQEWB_Event> Events;
 
     UPROPERTY(Transient)
+    bool bIsCleanedUp = false;
+
+    UPROPERTY(Transient)
     bool bChangedSinceLastPoll = false;
 
     UPROPERTY(Transient)
@@ -81,6 +84,11 @@ public:
     UPROPERTY(Transient)
     TMap<FName, TObjectPtr<UObject>> PickerProxiesById;
 
+    UPROPERTY(Transient) 
+    TMap<FName, FVector> VectorValues;
+    UPROPERTY(Transient)
+    TMap<FName, FQEWB_VectorChanged> OnVectorChangedById;
+
 
     // Store actual widget instances per element Id
     UPROPERTY(Transient)
@@ -106,10 +114,14 @@ public:
     UPROPERTY(Transient) 
     TMap<FName, FQEWB_ButtonClicked> OnButtonClickedById;
 
+    // to avoid garbage collection
     UPROPERTY()
     TArray<TObjectPtr<UObject>> OwnedUObjects;
 
 public:
+
+    void Cleanup();
+
     UPanelWidget* Current() const 
     { 
         return LayoutStack.Num() > 0 ? LayoutStack.Last() : nullptr; 
@@ -232,6 +244,14 @@ public:
         }
     }
 
+    void NotifyVectorChanged(FName Id, FVector NewValue)
+    {
+        if (FQEWB_VectorChanged* D = OnVectorChangedById.Find(Id))
+        {
+            if (D->IsBound()) { D->Execute(NewValue); }
+        }
+    }
+
     void RegisterWidget(FName Id, UWidget* Widget)
     {
         if (Widget && Id != NAME_None)
@@ -253,6 +273,18 @@ public:
             E.Id = Pair.Key;
             E.ValueType = EQEWB_ValueType::Bool;
             E.BoolValue = Pair.Value;
+            Emit(E);
+        }
+
+        for (const TPair<FName, FVector>& Pair : VectorValues)
+        {
+            NotifyVectorChanged(Pair.Key, Pair.Value);
+
+            FQEWB_Event E;
+            E.Type = EQEWB_EventType::ValueChanged;
+            E.Id = Pair.Key;
+            E.ValueType = EQEWB_ValueType::Vector;
+            E.VectorValue = Pair.Value;
             Emit(E);
         }
 

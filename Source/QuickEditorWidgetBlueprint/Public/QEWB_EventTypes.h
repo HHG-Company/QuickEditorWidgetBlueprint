@@ -25,7 +25,8 @@ enum class EQEWB_ValueType : uint8
     String,
     Name,
     Object,
-    Class
+    Class,
+    Vector
 };
 
 UENUM(BlueprintType)
@@ -69,6 +70,9 @@ struct FQEWB_Event
 
     UPROPERTY(BlueprintReadOnly, Category="QuickEditorWidgetBlueprint")
     TObjectPtr<UClass> ClassValue = nullptr;
+
+    UPROPERTY(BlueprintReadOnly, Category = "QuickEditorWidgetBlueprint")
+    FVector VectorValue = FVector::ZeroVector;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FQEWB_OnEvent, const FQEWB_Event&, Event);

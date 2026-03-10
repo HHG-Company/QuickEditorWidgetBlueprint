@@ -17,4 +17,9 @@ public:
     virtual TSharedRef<SWidget> RebuildWidget() override;
 
     void EnsureRoot();
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UQEWB_WindowHandle> OwningHandle = nullptr;
+
+	virtual void NativeDestruct() override;
 };

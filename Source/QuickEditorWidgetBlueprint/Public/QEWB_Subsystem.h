@@ -36,7 +36,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Window")
     static void CloseWindow(UQEWB_WindowHandle* Handle);
 
-    UFUNCTION()
+    // will end all pending layouts
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Utility")
     static UQEWB_WindowHandle* NormalizeLayouts(UQEWB_WindowHandle* Handle);
 
     UFUNCTION(BlueprintCallable, Category="QuickEditorWidgetBlueprint|Settings")
@@ -132,4 +133,10 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Callbacks")
     static UQEWB_WindowHandle* BroadcastCurrentValues(UQEWB_WindowHandle* Handle);
+
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Controls")
+    static UQEWB_WindowHandle* AddVectorField( UQEWB_WindowHandle* Handle, FName Id, const FText& LabelText, FVector DefaultValue, EQEWB_SlotRule SlotRule);
+
+    UFUNCTION(BlueprintCallable, Category = "QuickEditorWidgetBlueprint|Callbacks")
+    static UQEWB_WindowHandle* BindVectorChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_VectorChanged Callback);
 };

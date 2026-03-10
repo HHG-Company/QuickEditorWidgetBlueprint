@@ -124,6 +124,8 @@ UQEWB_WindowHandle* UQEWB_Subsystem::StartWindow(const FString& Title)
     Handle->LayoutStack.Reset();
     Handle->LayoutStack.Add(Host->Root);
 
+    Host->OwningHandle = Handle;
+
     // Optional: emit "Closed" event when window closes
     WindowRef->SetOnWindowClosed(FOnWindowClosed::CreateLambda([Handle](const TSharedRef<SWindow>&)
         {
@@ -135,6 +137,9 @@ UQEWB_WindowHandle* UQEWB_Subsystem::StartWindow(const FString& Title)
             E.ValueType = EQEWB_ValueType::None;
             Handle->Emit(E);
         }));
+
+    Handle->LayoutStack.Add(Host->Root);
+    Host->OwningHandle = Handle;
 
     return Handle;
 }
@@ -167,6 +172,7 @@ UQEWB_WindowHandle* UQEWB_Subsystem::CreateModalWindow(const FString& Title)
     Handle->ModalWindow = WindowRef;
     Handle->LayoutStack.Reset();
     Handle->LayoutStack.Add(Host->Root);
+    Host->OwningHandle = Handle;
     return Handle;
 }
 
@@ -954,6 +960,68 @@ UQEWB_WindowHandle* UQEWB_Subsystem::AddClassPicker(
     return Handle;
 }
 
+UQEWB_WindowHandle* UQEWB_Subsystem::AddVectorField(
+    UQEWB_WindowHandle* Handle,
+    FName Id,
+    const FText& LabelText,
+    FVector DefaultValue,
+    EQEWB_SlotRule SlotRule)
+{
+    if (!Handle) return nullptr;
+
+    if (!Handle->VectorValues.Contains(Id))
+    {
+        Handle->VectorValues.Add(Id, DefaultValue);
+    }
+
+    UHorizontalBox* Row = AddLabeledRow(Handle, LabelText, SlotRule);
+    if (!Row) return Handle;
+
+    const FVector Current = Handle->VectorValues[Id];
+
+    UEditableTextBox* XBox = NewObject<UEditableTextBox>(Row);
+    UEditableTextBox* YBox = NewObject<UEditableTextBox>(Row);
+    UEditableTextBox* ZBox = NewObject<UEditableTextBox>(Row);
+
+    XBox->SetText(FText::AsNumber(Current.X));
+    YBox->SetText(FText::AsNumber(Current.Y));
+    ZBox->SetText(FText::AsNumber(Current.Z));
+
+    UQEWB_VectorProxy* Proxy = NewObject<UQEWB_VectorProxy>(Handle);
+    Proxy->Handle = Handle;
+    Proxy->Id = Id;
+    Proxy->XBox = XBox;
+    Proxy->YBox = YBox;
+    Proxy->ZBox = ZBox;
+
+    Handle->OwnedUObjects.Add(Proxy);
+
+    auto AddVecSlot = [&](UEditableTextBox* Box)
+        {
+            UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(Box);
+            Slot->SetSize(FSlateChildSize(
+                (SlotRule == EQEWB_SlotRule::Auto) ? ESlateSizeRule::Automatic : ESlateSizeRule::Fill));
+            Slot->SetPadding(FMargin(0, 2, 4, 2));
+            Slot->SetHorizontalAlignment(HAlign_Fill);
+            Slot->SetVerticalAlignment(VAlign_Center);
+            FQEWB_UnrealTheme::Apply(Box);
+
+            Box->OnTextChanged.AddDynamic(
+                Proxy,
+                &UQEWB_VectorProxy::OnAnyTextChanged
+            );
+        };   
+
+    AddVecSlot(XBox);
+    AddVecSlot(YBox);
+    AddVecSlot(ZBox);
+
+    // Register the row by Id so enable/disable/remove affects the whole vector field.
+    Handle->RegisterWidget(Id, Row);
+
+    return Handle;
+}
+
 /* ------------------------------ Events ------------------------------ */
 
 void UQEWB_Subsystem::PollEvents(UQEWB_WindowHandle* Handle, bool bClear, TArray<FQEWB_Event>& OutEvents)
@@ -1039,6 +1107,14 @@ UQEWB_WindowHandle* UQEWB_Subsystem::BindClassChanged(UQEWB_WindowHandle* Handle
 
 }
 
+UQEWB_WindowHandle* UQEWB_Subsystem::BindVectorChanged(UQEWB_WindowHandle* Handle, FName Id, FQEWB_VectorChanged Callback)
+{
+    if (!Handle) return NULL;
+    Handle->OnVectorChangedById.Add(Id, Callback);
+
+    return Handle;
+}
+
 UQEWB_WindowHandle* UQEWB_Subsystem::BroadcastCurrentValues(UQEWB_WindowHandle* Handle)
 {
     if (!Handle)
@@ -1049,3 +1125,4 @@ UQEWB_WindowHandle* UQEWB_Subsystem::BroadcastCurrentValues(UQEWB_WindowHandle* 
     Handle->NotifyAll();
     return Handle;    
 }
+

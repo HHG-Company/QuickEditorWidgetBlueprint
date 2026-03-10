@@ -4,6 +4,7 @@
 #include "UObject/Object.h"
 #include "QEWB_WindowHandle.h"
 #include "Components/CheckBox.h"
+#include "Components/EditableTextBox.h"
 #include "QEWB_InternalProxies.generated.h"
 
 class UVerticalBox;
@@ -158,5 +159,71 @@ public:
     {
         if (!CheckBox) return;
         CheckBox->SetIsChecked(!CheckBox->IsChecked());
+    }
+};
+
+UCLASS()
+class UQEWB_VectorProxy : public UObject
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY() 
+    TObjectPtr<UQEWB_WindowHandle> Handle;
+    UPROPERTY() 
+    FName Id = NAME_None;
+
+    UPROPERTY() 
+    TObjectPtr<UEditableTextBox> XBox = nullptr;
+    UPROPERTY() 
+    TObjectPtr<UEditableTextBox> YBox = nullptr;
+    UPROPERTY()
+    TObjectPtr<UEditableTextBox> ZBox = nullptr;
+
+    UFUNCTION()
+    void OnAnyTextChanged(const FText& NewText);
+
+private:
+    void PushValue();
+};
+
+UCLASS()
+class UQEWB_VectorAxisProxy : public UObject
+{
+    GENERATED_BODY()
+
+public:
+
+    UPROPERTY()
+    TObjectPtr<UQEWB_WindowHandle> Handle;
+
+    UPROPERTY()
+    FName Id;
+
+    UPROPERTY()
+    int Axis = 0;
+
+    UFUNCTION()
+    void OnTextChanged(const FText& NewText)
+    {
+        if (!Handle) return;
+
+        const double Value = FCString::Atod(*NewText.ToString());
+
+        FVector V = Handle->VectorValues.FindRef(Id);
+
+        if (Axis == 0) V.X = Value;
+        if (Axis == 1) V.Y = Value;
+        if (Axis == 2) V.Z = Value;
+
+        Handle->VectorValues.Add(Id, V);
+        Handle->NotifyVectorChanged(Id, V);
+
+        FQEWB_Event E;
+        E.Type = EQEWB_EventType::ValueChanged;
+        E.Id = Id;
+        E.ValueType = EQEWB_ValueType::Vector;
+        E.VectorValue = V;
+
+        Handle->Emit(E);
     }
 };
